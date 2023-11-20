@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: Apply Noise",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/apply_noise.py",
+            "console": "integratedTerminal",
+            "args": ["data/dog.png", "--schedule", "cosine"],
+            "justMyCode": true
+        }
+    ]
+}
