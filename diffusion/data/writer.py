@@ -1,12 +1,15 @@
 import os
 import pathlib
 
+import numpy
 import torch
-from PIL import Image
+from PIL.Image import Image
 from torchvision import transforms
 
 
-def save_image(file_path: pathlib.Path, data: torch.Tensor) -> None:
+def save_image(
+    file_path: pathlib.Path, image: Image | numpy.ndarray | torch.Tensor
+) -> None:
     """_summary_
 
     Parameters
@@ -16,9 +19,8 @@ def save_image(file_path: pathlib.Path, data: torch.Tensor) -> None:
     data : torch.Tensor
         _description_
     """
-    # Ensure the output directory exists
     if not file_path.parent.exists():
         os.makedirs(file_path.parent)
-    # Transform the tensor to an image and save it
-    image: Image.Image = transforms.ToPILImage()(data)
+    if isinstance(image, numpy.ndarray) or isinstance(image, torch.Tensor):
+        image = transforms.ToPILImage()(image)
     image.save(file_path)

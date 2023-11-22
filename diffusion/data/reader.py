@@ -51,9 +51,7 @@ def load_data(
         raise ValueError(f'Invalid dataset specified: "{dataset}"')
     dataclass = DATASETS[dataset]
     # Download the dataset and transform it
-    data: VisionDataset = dataclass(
-        root=DATA_DIR, download=True, transform=transformation
-    )
+    data: VisionDataset = dataclass(root=DATA_DIR, transform=transformation)
     # Determine the sizes and indices of the train and test sets
     n = len(data)
     n_train = int(train_ratio * n)
