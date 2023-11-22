@@ -14,7 +14,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/apply_noise.py",
             "console": "integratedTerminal",
-            "args": ["data/dog.png", "--schedule", "cosine"],
+            "args": ["data/images/dog.png", "--schedule", "sigmoid"],
             "justMyCode": true
         }
     ]
