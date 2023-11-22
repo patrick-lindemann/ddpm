@@ -4,6 +4,7 @@ import pathlib
 from typing import List
 
 import torch
+import matplotlib.pyplot as plt
 
 from diffusion.data import (
     load_image,
@@ -16,7 +17,9 @@ from diffusion.schedule import (
     LinearScheduler,
     Scheduler,
     SigmoidScheduler,
+    QuadraticScheduler,
 )
+from diffusion.diffusion import GaussianDiffuser
 
 
 def get_args() -> argparse.Namespace:
@@ -33,39 +36,39 @@ def get_args() -> argparse.Namespace:
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
-        "--schedule",
-        type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "cosine", "sigmoid".',
-        default="linear",
-    )
-    parser.add_argument(
         "--time-steps",
         type=int,
         help="The number of time steps for the diffusion process.",
         default=10,
     )
     parser.add_argument(
-        "--schedule-min",
-        type=float,
-        help="The starting value for the schedule.",
-        default=None,
+        "--schedule",
+        type=str.lower,
+        help='The schedule to use.\nAllowed values: "linear", "quadratic", "cosine", "sigmoid".',
+        default="linear",
     )
     parser.add_argument(
-        "--schedule-max",
+        "--schedule-start",
+        type=float,
+        help="The starting value for the schedule.",
+        default=0.0,
+    )
+    parser.add_argument(
+        "--schedule-end",
         type=float,
         help="The ending value for the schedule.",
-        default=None,
+        default=1.0,
     )
     parser.add_argument(
         "--schedule-tau",
         type=float,
-        help="The tau value for the schedule.",
+        help="The tau value for the schedule. Only applicable for cosine and sigmoid schedules.",
         default=1.0,
     )
     parser.add_argument(
         "--image-size",
         type=int,
-        help="The (quadratic) size to scale the images to.",
+        help="The (quadratic) size to scale the image to.",
         default=128,
     )
     parser.add_argument(
@@ -95,27 +98,22 @@ if __name__ == "__main__":
     # Prepare the scheduler
     scheduler: Scheduler
     if args.schedule == "linear":
-        scheduler = LinearScheduler(
-            args.time_steps,
-            start=args.schedule_min if args.schedule_min is not None else 0.0,
-            end=args.schedule_max if args.schedule_max is not None else 1.0,
-        )
+        scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
+    elif args.schedule == "quadratic":
+        scheduler = QuadraticScheduler(start=args.schedule_start, end=args.schedule_end)
     elif args.schedule == "cosine":
         scheduler = CosineScheduler(
-            args.time_steps,
-            start=args.schedule_min if args.schedule_min is not None else 0.0,
-            end=args.schedule_max if args.schedule_max is not None else 1.0,
-            tau=args.schedule_tau,
+            start=args.schedule_start, end=args.schedule_end, tau=args.schedule_tau
         )
     elif args.schedule == "sigmoid":
         scheduler = SigmoidScheduler(
-            args.time_steps,
-            start=args.schedule_min if args.schedule_min is not None else 0.0,
-            end=args.schedule_max if args.schedule_max is not None else 1.0,
-            tau=args.schedule_tau,
+            start=args.schedule_start, end=args.schedule_end, tau=args.schedule_tau
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
+
+    # Prepare the diffuser
+    diffuser = GaussianDiffuser(num_steps=args.time_steps, scheduler=scheduler)
 
     # Load the data
     logging.info(f'Loading image from "{args.image_path}"')
@@ -133,7 +131,7 @@ if __name__ == "__main__":
     )
     noised_images: List[torch.Tensor] = []
     for t in range(args.time_steps):
-        result, _ = scheduler.apply(image, torch.tensor([t]))
+        result, _ = diffuser.forward(image, torch.tensor([t]))
         noised_images.append(result[0])
 
     # Export the results

@@ -1,16 +1,43 @@
-import numpy
 import torch
 
 from .scheduler import Scheduler
 
 
 class LinearScheduler(Scheduler):
+    """__summary__"""
+
+    start: float
+    end: float
+
     def __init__(
         self,
-        time_steps: int,
         start: float = 0.0,
         end: float = 1.0,
     ) -> None:
-        t = numpy.linspace(start, end, time_steps)
-        y = 1.0 - t
-        super().__init__(torch.from_numpy(y))
+        """_summary_
+
+        Parameters
+        ----------
+        start : float, optional
+            _description_, by default 0.0
+        end : float, optional
+            _description_, by default 1.0
+        """
+        self.start = start
+        self.end = end
+
+    def __call__(self, t: torch.Tensor) -> torch.Tensor:
+        """_summary_
+
+        Parameters
+        ----------
+        t : torch.Tensor
+            _description_. Between 0 and 1
+
+        Returns
+        -------
+        torch.Tensor
+            _description_
+        """
+        assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
+        return t * (self.end - self.start) + self.start

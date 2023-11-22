@@ -14,6 +14,7 @@ from diffusion.schedule import (
     Scheduler,
     SigmoidScheduler,
 )
+from diffusion.diffusion import GaussianDiffuser
 
 
 def get_args() -> argparse.Namespace:
@@ -88,15 +89,16 @@ if __name__ == "__main__":
     # Prepare the scheduler
     scheduler: Scheduler
     if args.schedule == "linear":
-        scheduler = LinearScheduler(args.time_steps)
+        scheduler = LinearScheduler()
     elif args.schedule == "cosine":
-        scheduler = CosineScheduler(
-            args.time_steps,
-        )
+        scheduler = CosineScheduler()
     elif args.schedule == "sigmoid":
-        scheduler = SigmoidScheduler(args.time_steps)
+        scheduler = SigmoidScheduler()
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
+
+    # Prepare the diffuser
+    diffuser = GaussianDiffuser(num_steps=args.time_steps, scheduler=scheduler)
 
     # Load the data
     logging.info("Loading dataset.")
@@ -111,13 +113,13 @@ if __name__ == "__main__":
     # Train the model
     train_iter = iter(train_loader)
     losses: List[float] = []
-    for epoch in range(args.epochs):
+    for epoch in range(args.epochs + 1):
         # Retrieve the next batch of images
         image_batch, _ = next(train_iter)
         # Select a random time step for each image in the batch and apply the
         # noise for that time step
         t = torch.randint(0, args.time_steps, (args.batch_size,))
-        noised_image_batch, noise_batch = scheduler.apply(image_batch, t)
+        noised_image_batch, noise_batch = scheduler(image_batch, t)
         # Predict the noise for the noised images and calculate the loss
         for noised_image, noise in zip(noised_image_batch, noise_batch):
             predicted_noise = model(noised_image.float())
