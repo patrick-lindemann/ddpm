@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler, random_split
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, LSUN, CelebA, VisionDataset
 
-DATA_DIR = os.path.abspath("../data/")
+DATA_DIR = pathlib.Path("../data/datasets/")
 
 DATASETS: Dict[str, VisionDataset] = {
     "cifar10": CIFAR10,
@@ -50,8 +50,13 @@ def load_data(
     if dataset not in DATASETS:
         raise ValueError(f'Invalid dataset specified: "{dataset}"')
     dataclass = DATASETS[dataset]
+    # Ensure that the data folder exists
+    if not DATA_DIR.exists():
+        os.makedirs(DATA_DIR)
     # Download the dataset and transform it
-    data: VisionDataset = dataclass(root=DATA_DIR, transform=transformation)
+    data: VisionDataset = dataclass(
+        root=DATA_DIR, download=True, transform=transformation
+    )
     # Determine the sizes and indices of the train and test sets
     n = len(data)
     n_train = int(train_ratio * n)
