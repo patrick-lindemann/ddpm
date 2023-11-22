@@ -50,4 +50,5 @@ class SigmoidScheduler(Scheduler):
         v_start = f(self.start)
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
-        return (v_t - v_start) / (v_end - v_start)
+        result = (v_t - v_start) / (v_end - v_start)
+        return torch.clamp(result, min=0.0, max=1.0)
