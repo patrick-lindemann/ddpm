@@ -119,28 +119,25 @@ if __name__ == "__main__":
         # Select a random time step for each image in the batch and apply the
         # noise for that time step
         t = torch.randint(0, args.time_steps, (args.batch_size,))
-        print(image_batch)
-        print(t)
-        noised_image_batch, noise_batch = scheduler(image_batch, t)
+        noised_image_batch, noise_batch = diffuser.forward(image_batch, t)
         # Predict the noise for the noised images and calculate the loss
-        for noised_image, noise in zip(noised_image_batch, noise_batch):
-            predicted_noise = model(noised_image.float())
-            loss = loss_func(predicted_noise, noise)
-            losses.append(loss.item())
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+
+        predicted_noise_batch = model(noised_image_batch.float())
+        loss = loss_func(predicted_noise_batch, noise_batch)
+        losses.append(loss.item())
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
         # Print the average of the loss values for this epoch
-        if epoch % 100 == 0:
-            avg_loss = sum(losses[-args.batch_size :]) / args.batch_size
+        if epoch % 50 == 0:
             logging.info(
-                f"Finished epoch {epoch}. Average loss for this epoch: {avg_loss:05f}"
+                f"Finished epoch {epoch}. Average loss for this epoch: {loss:05f}"
             )
 
     # Plot the training losses
     plt.plot(losses)
-    plt.show()
-
+    plt.savefig("train-result.png")
     # Test the model
 
     # Plot the test losses
