@@ -105,7 +105,7 @@ if __name__ == "__main__":
     train_loader, test_loader = load_data(args.dataset, batch_size=args.batch_size)
 
     # Prepare the model
-    model = BasicUNet(channels_in=3, channels_out=3)
+    model = BasicUNet(in_channels=3, out_channels=3)
     # model.to(args.device)
     loss_func = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -119,6 +119,8 @@ if __name__ == "__main__":
         # Select a random time step for each image in the batch and apply the
         # noise for that time step
         t = torch.randint(0, args.time_steps, (args.batch_size,))
+        print(image_batch)
+        print(t)
         noised_image_batch, noise_batch = scheduler(image_batch, t)
         # Predict the noise for the noised images and calculate the loss
         for noised_image, noise in zip(noised_image_batch, noise_batch):

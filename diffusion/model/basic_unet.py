@@ -21,7 +21,7 @@ class DoubleConv(nn.Module):
 
 
 # Implementation inspired by Aladdin Persson - PyTorch Image Segmentation Tutorial with U-NET: everything from scratch baby
-class BasicUnet(nn.Module):
+class BasicUNet(nn.Module):
     def __init__(
         self,
         in_channels=3,
@@ -29,7 +29,7 @@ class BasicUnet(nn.Module):
         features=[64, 128, 256, 512],
     ):
         # UNET Convolution
-        super(BasicUnet, self).__init__()
+        super(BasicUNet, self).__init__()
         self.ups = nn.ModuleList()
         self.downs = nn.ModuleList()
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
