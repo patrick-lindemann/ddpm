@@ -7,14 +7,15 @@ import matplotlib.pyplot as plt
 import torch
 
 from diffusion.data import load_data
+from diffusion.diffusion import GaussianDiffuser
 from diffusion.model import BasicUNet
 from diffusion.schedule import (
     CosineScheduler,
     LinearScheduler,
+    PolynomialScheduler,
     Scheduler,
     SigmoidScheduler,
 )
-from diffusion.diffusion import GaussianDiffuser
 
 
 def get_args() -> argparse.Namespace:
@@ -34,7 +35,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--schedule",
         type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "cosine", "exponential".',
+        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
         default="linear",
     )
     parser.add_argument(
@@ -89,11 +90,25 @@ if __name__ == "__main__":
     # Prepare the scheduler
     scheduler: Scheduler
     if args.schedule == "linear":
-        scheduler = LinearScheduler()
+        scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
+    elif args.schedule == "polynomial":
+        scheduler = PolynomialScheduler(
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 2.0,
+        )
     elif args.schedule == "cosine":
-        scheduler = CosineScheduler()
+        scheduler = CosineScheduler(
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 1.0,
+        )
     elif args.schedule == "sigmoid":
-        scheduler = SigmoidScheduler()
+        scheduler = SigmoidScheduler(
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 1.0,
+        )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 

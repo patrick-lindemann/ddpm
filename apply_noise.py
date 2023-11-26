@@ -4,7 +4,6 @@ import pathlib
 from typing import List
 
 import torch
-import matplotlib.pyplot as plt
 
 from diffusion.data import (
     load_image,
@@ -17,7 +16,7 @@ from diffusion.schedule import (
     LinearScheduler,
     Scheduler,
     SigmoidScheduler,
-    QuadraticScheduler,
+    PolynomialScheduler,
 )
 from diffusion.diffusion import GaussianDiffuser
 
@@ -44,7 +43,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--schedule",
         type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "quadratic", "cosine", "sigmoid".',
+        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "sigmoid".',
         default="linear",
     )
     parser.add_argument(
@@ -62,8 +61,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--schedule-tau",
         type=float,
-        help="The tau value for the schedule. Only applicable for cosine and sigmoid schedules.",
-        default=1.0,
+        help="The tau value for the schedule. Only applicable for polynomial, cosine and sigmoid schedules.",
+        default=None,
     )
     parser.add_argument(
         "--image-size",
@@ -99,15 +98,23 @@ if __name__ == "__main__":
     scheduler: Scheduler
     if args.schedule == "linear":
         scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
-    elif args.schedule == "quadratic":
-        scheduler = QuadraticScheduler(start=args.schedule_start, end=args.schedule_end)
+    elif args.schedule == "polynomial":
+        scheduler = PolynomialScheduler(
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 2.0,
+        )
     elif args.schedule == "cosine":
         scheduler = CosineScheduler(
-            start=args.schedule_start, end=args.schedule_end, tau=args.schedule_tau
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 1.0,
         )
     elif args.schedule == "sigmoid":
         scheduler = SigmoidScheduler(
-            start=args.schedule_start, end=args.schedule_end, tau=args.schedule_tau
+            start=args.schedule_start,
+            end=args.schedule_end,
+            tau=args.schedule_tau or 1.0,
         )
     else:
         raise ValueError(f"Unknown scheduler: {args.scheduler}")

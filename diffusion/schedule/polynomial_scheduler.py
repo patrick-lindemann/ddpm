@@ -3,17 +3,13 @@ import torch
 from .scheduler import Scheduler
 
 
-class QuadraticScheduler(Scheduler):
+class PolynomialScheduler(Scheduler):
     """__summary__"""
 
     start: float
     end: float
 
-    def __init__(
-        self,
-        start: float = 0.0,
-        end: float = 1.0,
-    ) -> None:
+    def __init__(self, start: float = 0.0, end: float = 1.0, tau: float = 2.0) -> None:
         """_summary_
 
         Parameters
@@ -22,9 +18,12 @@ class QuadraticScheduler(Scheduler):
             _description_, by default 0.0
         end : float, optional
             _description_, by default 1.0
+        tau : float, optional
+            _description_, by default 2.0
         """
         self.start = start
         self.end = end
+        self.tau = tau
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         """_summary_
@@ -40,7 +39,7 @@ class QuadraticScheduler(Scheduler):
             _description_
         """
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
-        f = lambda x: x**2
+        f = lambda x: x**self.tau
         v_start = f(self.start)
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
