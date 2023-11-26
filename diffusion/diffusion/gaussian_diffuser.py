@@ -40,7 +40,6 @@ class GaussianDiffuser(Diffuser):
         self, images: torch.Tensor, t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Generate random noise for the image
-        # FIXME: This is not normalized and adds weird noise
         noise = torch.randn_like(images)
         # Evaluate the gamma function at the given time step for each image
         N = images.shape[0]
