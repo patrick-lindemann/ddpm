@@ -50,7 +50,7 @@ def get_args() -> argparse.Namespace:
         "--schedule-steps",
         type=int,
         help="The number of time steps for the diffusion process.",
-        default=10,
+        default=1000,
     )
     parser.add_argument(
         "--schedule-start",
