@@ -1,12 +1,14 @@
 import argparse
+import json
 import logging
+import os
 import pathlib
 from typing import List
 
-import matplotlib.pyplot as plt
 import torch
+from tqdm import tqdm
 
-from diffusion.data import load_data
+from diffusion.data import create_dataloader, load_dataset, plot_loss, split_dataset
 from diffusion.diffusion import GaussianDiffuser
 from diffusion.model import BasicUNet
 from diffusion.schedule import (
@@ -27,24 +29,6 @@ def get_args() -> argparse.Namespace:
         default="CIFAR10",
     )
     parser.add_argument(
-        "--device",
-        type=str.lower,
-        help='The device to use.\nAllowed values: "CPU", "Cuda".',
-        default="cuda" if torch.cuda.is_available() else "cpu",
-    )
-    parser.add_argument(
-        "--schedule",
-        type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
-        default="linear",
-    )
-    parser.add_argument(
-        "--time-steps",
-        type=int,
-        help="The number of time steps for the diffusion process.",
-        default=10,
-    )
-    parser.add_argument(
         "--epochs",
         type=int,
         help="The number of epochs to train for.",
@@ -57,22 +41,58 @@ def get_args() -> argparse.Namespace:
         default=16,
     )
     parser.add_argument(
+        "--schedule",
+        type=str.lower,
+        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
+        default="linear",
+    )
+    parser.add_argument(
+        "--schedule-steps",
+        type=int,
+        help="The number of time steps for the diffusion process.",
+        default=10,
+    )
+    parser.add_argument(
+        "--schedule-start",
+        type=float,
+        help="The starting value for the schedule.",
+        default=0.0,
+    )
+    parser.add_argument(
+        "--schedule-end",
+        type=float,
+        help="The ending value for the schedule.",
+        default=1.0,
+    )
+    parser.add_argument(
+        "--schedule-tau",
+        type=float,
+        help="The tau value for the schedule. Only applicable for polynomial, cosine and sigmoid schedules.",
+        default=None,
+    )
+    parser.add_argument(
+        "--train-size",
+        type=float,
+        help="The size of the training set.",
+        default=0.8,
+    )
+    parser.add_argument(
         "--learning-rate",
         type=float,
         help="The learning rate for the optimizer.",
         default=1e-3,
     )
     parser.add_argument(
-        "--image-size",
-        type=int,
-        help="The (quadratic) size to scale the images to.",
-        default=128,
-    )
-    parser.add_argument(
         "--outdir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default="./out/",
+        default="./out/train",
+    )
+    parser.add_argument(
+        "--device",
+        type=str.lower,
+        help='The device to use.\nAllowed values: "CPU", "Cuda".',
+        default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."
@@ -113,11 +133,17 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(num_steps=args.time_steps, scheduler=scheduler)
+    diffuser = GaussianDiffuser(num_steps=args.schedule_steps, scheduler=scheduler)
+
+    # Prepare the output directory
+    if not args.outdir.exists():
+        os.makedirs(args.outdir)
 
     # Load the data
     logging.info("Loading dataset.")
-    train_loader, test_loader = load_data(args.dataset, batch_size=args.batch_size)
+    dataset = load_dataset(args.dataset)
+    train_indices, test_indices = split_dataset(dataset, train_size=args.train_size)
+    train_loader = create_dataloader(dataset, train_indices, batch_size=args.batch_size)
 
     # Prepare the model
     model = BasicUNet(in_channels=3, out_channels=3)
@@ -126,36 +152,65 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # Train the model
+    logging.info(
+        f"Starting training for {args.epochs} epochs with batch size {args.batch_size}."
+    )
     train_iter = iter(train_loader)
     losses: List[float] = []
-    for epoch in range(args.epochs + 1):
+    for epoch in tqdm(range(args.epochs)):
         # Retrieve the next batch of images
         image_batch, _ = next(train_iter)
         # Select a random time step for each image in the batch and apply the
         # noise for that time step
-        t = torch.randint(0, args.time_steps, (args.batch_size,))
+        t = torch.randint(0, args.schedule_steps, (args.batch_size,))
         noised_image_batch, noise_batch = diffuser.forward(image_batch, t)
         # Predict the noise for the noised images and calculate the loss
-
         predicted_noise_batch = model(noised_image_batch.float())
         loss = loss_func(predicted_noise_batch, noise_batch)
         losses.append(loss.item())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # Print the average of the loss values for this epoch
         if epoch % 50 == 0:
             logging.info(
                 f"Finished epoch {epoch}. Average loss for this epoch: {loss:05f}"
             )
 
-    # Plot the training losses
-    plt.plot(losses)
-    plt.savefig("train-result.png")
-    # Test the model
+    # Export the metadata
+    metadata = {
+        "final_loss": losses[-1],
+        "epochs": args.epochs,
+        "learning_rate": args.learning_rate,
+        "schedule": {
+            "type": scheduler.name,
+            "start": scheduler.start,
+            "end": scheduler.end,
+            "tau": scheduler.tau if scheduler.name != "linear" else None,
+            "steps": args.schedule_steps,
+        },
+        "dataset": {
+            "name": args.dataset,
+            "batch_size": args.batch_size,
+            "indices": {
+                "train": train_indices,
+                "test": test_indices,
+            },
+        },
+    }
+    metadata_path = args.outdir / "metadata.json"
+    logging.info(f"Saving metadata to {metadata_path}.")
+    with open(metadata_path, "w") as file:
+        json.dump(metadata, file)
 
-    # Plot the test losses
+    # Plot the losses
+    losses_path = args.outdir / "train-loss.svg"
+    logging.info(f"Saving loss plot to {losses_path}.")
+    plot_loss(
+        losses=torch.tensor(losses),
+        file_path=losses_path,
+    )
 
     # Export the model
-    # torch.save(model.state_dict(), "model.pt")
+    model_path = args.outdir / "model.pt"
+    logging.info(f"Saving model to {model_path}.")
+    torch.save(model.state_dict(), model_path)

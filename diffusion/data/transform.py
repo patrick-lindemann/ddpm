@@ -6,6 +6,20 @@ from torchvision import transforms
 
 
 def transform_image(image: torch.Tensor, size: Tuple[int] = (128, 128)) -> torch.Tensor:
+    """_summary_
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        _description_
+    size : Tuple[int], optional
+        _description_, by default (128, 128)
+
+    Returns
+    -------
+    torch.Tensor
+        _description_
+    """
     return transforms.Compose(
         [
             transforms.Resize(size),  # Resize image
@@ -16,6 +30,18 @@ def transform_image(image: torch.Tensor, size: Tuple[int] = (128, 128)) -> torch
 
 
 def reverse_transform_image(image: torch.Tensor) -> torch.Tensor:
+    """_summary_
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        _description_
+
+    Returns
+    -------
+    torch.Tensor
+        _description_
+    """
     return transforms.Compose(
         [
             transforms.Lambda(lambda t: (t + 1) / 2),  # Scale data between [0., 1.]

@@ -1,10 +1,12 @@
-import os
+import json
 import pathlib
 
 import numpy
 import torch
 from PIL.Image import Image
 from torchvision import transforms
+
+from diffusion.schedule import Scheduler
 
 
 def save_image(
@@ -19,8 +21,6 @@ def save_image(
     data : torch.Tensor
         _description_
     """
-    if not file_path.parent.exists():
-        os.makedirs(file_path.parent)
     if isinstance(image, numpy.ndarray) or isinstance(image, torch.Tensor):
         image = transforms.ToPILImage()(image)
     image.save(file_path)

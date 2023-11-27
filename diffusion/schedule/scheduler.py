@@ -6,6 +6,11 @@ import torch
 class Scheduler(ABC):
     """_summary_"""
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError()
+
     @abstractmethod
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         """_summary_

@@ -25,6 +25,10 @@ class PolynomialScheduler(Scheduler):
         self.end = end
         self.tau = tau
 
+    @property
+    def name(self) -> str:
+        return "polynomial"
+
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         """_summary_
 
