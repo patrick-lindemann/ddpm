@@ -14,7 +14,25 @@
             "request": "launch",
             "program": "${workspaceFolder}/apply_noise.py",
             "console": "integratedTerminal",
-            "args": ["data/images/dog.png", "--schedule", "sigmoid"],
+            "args": ["data/images/dog.png", "--schedule", "cosine"],
+            "justMyCode": true
+        },
+        {
+            "name": "Python: Train Denoiser",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_denoiser.py",
+            "console": "integratedTerminal",
+            "args": ["--epochs", "10", "--schedule", "cosine"],
+            "justMyCode": true
+        },
+        {
+            "name": "Python: Test Denoiser",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_denoiser.py",
+            "console": "integratedTerminal",
+            "args": ["out/train"],
             "justMyCode": true
         }
     ]
