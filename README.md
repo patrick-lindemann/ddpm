@@ -30,7 +30,7 @@ This routine visualizes the forward diffusion process. It takes an image as para
 | `--schedule-end` | The ending value for the schedule | float | 1.0 | |
 | `--schedule-tau` | The tau value for the schedule | float | None | Only applicable for polynimial, cosine and sigmoid schedules |
 | `--image-size` | The (quadratic) size to scale the image to | int | 128 | |
-| `--outdir` | The directory to save the results to | pathlib.Path | `./out/<schedule>`| |
+| `--outdir` | The directory to save the results to | pathlib.Path | `./out/forward/<schedule>`| |
 | `--device` | The device to use | torch.Device | "cpu" | |
 | `--verbose` | Enable verbose logging | bool | False | |
 
@@ -54,7 +54,7 @@ This routine traines the basic denoiser implementation on a specified dataset su
 | `--schedule-tau` | The tau value for the schedule | float | None | Only applicable for polynimial, cosine and sigmoid schedules |
 | `--train-size` | The size of the training set | float | 0.8 | |
 | `--learning-rate` | The learning rate for the optimizer | float | 1e-3 | |
-| `--outdir` | The directory to save the results to | pathlib.Path | "./out/train" | |
+| `--outdir` | The directory to save the results to | pathlib.Path | `./out/train` | |
 | `--device` | The device to use | cpu, cuda | cpu | |
 | `--verbose` | Enable verbose logging | bool | False | |
 
@@ -73,7 +73,7 @@ This routine is used to evaluate the trained denoiser. It takes the path to the 
 | --- | --- | --- | --- | --- |
 | `--time-step` | The time step to evaluate the denoiser at | int | None | |
 | `--device` | The device to use | torch.Device | "cpu" | |
-| `--outdir` | The directory to save the results to | pathlib.Path | `./out/<schedule>`| |
+| `--outdir` | The directory to save the results to | pathlib.Path | `./out/test`| |
 | `--verbose` | Enable verbose logging | bool | False | |
 
 #### Parameters
