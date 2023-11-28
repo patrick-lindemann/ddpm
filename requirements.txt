@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+ numpy
+ torch
+ torchvision
+ lightning
+ matplotlib
+ pandas
+ scikit-learn
