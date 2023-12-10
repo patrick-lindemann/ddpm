@@ -2,6 +2,8 @@ from typing import Tuple
 
 import torch
 
+import torch.nn.functional as F
+
 from diffusion.schedule import LinearScheduler, Scheduler
 
 from .diffuser import Diffuser
@@ -36,6 +38,7 @@ class GaussianDiffuser(Diffuser):
         # self._alphas = torch.clip(1.0 - self._betas, 1e-9, 9.9999e-1)
         self._alpha_hats = torch.cumprod(self._alphas, axis=0)
 
+
     def forward(
         self, images: torch.Tensor, t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -48,3 +51,28 @@ class GaussianDiffuser(Diffuser):
         result = torch.sqrt(gamma_t) * images + torch.sqrt(1.0 - gamma_t) * noise
         result = torch.clamp(result, -1.0, 1.0)
         return result, noise
+    
+    def reverse(
+            self, noised_images: torch.Tensor, predicted_noise: torch.Tensor, t: torch.Tensor
+        ) -> torch.Tensor:
+            """
+            Reverse the diffusion process to reconstruct the original images.
+
+            Parameters:
+            - noised_images: Tensor of noised images after the diffusion process.
+            - noise: Tensor of noise applied during the diffusion process.
+            - t: Tensor representing the time step for each image.
+
+            Returns:
+            Reconstructed images.
+            """
+            # Evaluate the gamma function at the given time step for each image
+            N = noised_images.shape[0]
+            gamma_t = self._alpha_hats[t].reshape(shape=[N, 1, 1, 1])
+
+            # Reverse the diffusion process
+            reconstructed_images = (noised_images - torch.sqrt(1.0 - gamma_t) * predicted_noise) / torch.sqrt(gamma_t)
+            reconstructed_images = torch.clamp(reconstructed_images, -1.0, 1.0)
+            return reconstructed_images
+
+     
