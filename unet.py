@@ -51,7 +51,7 @@ class TimeEmbedding(nn.Module):
         embeddings = t[:, None] * embeddings[None, :]
 
         embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
-        # TODO: Double check the ordering here
+
         return embeddings
 
 
@@ -107,12 +107,3 @@ class SimpleUnet(nn.Module):
             x = self.ups[i + 1](x, t)
 
         return self.final_conv(x)
-
-
-if __name__ == "__main__":
-    batch_size = 8
-    x = torch.randn(batch_size, 3, 32, 32)
-    t = torch.randint(1000, (batch_size,))
-    model = SimpleUnet()
-    y = model(x, t)
-    print(y.shape)
