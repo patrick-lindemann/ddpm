@@ -120,8 +120,8 @@ class diffusion:
 
 model = UNet2DModel(
     sample_size=64,  # the target image resolution
-    in_channels=1,  # the number of input channels, 3 for RGB images
-    out_channels=1,  # the number of output channels
+    in_channels=3,  # the number of input channels, 3 for RGB images
+    out_channels=3,  # the number of output channels
     layers_per_block=2,  # how many ResNet layers to use per UNet block
     block_out_channels=(IMG_SIZE, IMG_SIZE, IMG_SIZE*2, IMG_SIZE*2, IMG_SIZE*4, IMG_SIZE*4),  # the number of output channels for each UNet block
     down_block_types=(
