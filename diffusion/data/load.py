@@ -5,13 +5,7 @@ from typing import Callable, List, Literal, Optional, Tuple
 import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
-from torch.utils.data import (
-    DataLoader,
-    Dataset,
-    Subset,
-    SubsetRandomSampler,
-    random_split,
-)
+from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, LSUN, CelebA, VisionDataset
 
