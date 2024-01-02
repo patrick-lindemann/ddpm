@@ -2,8 +2,6 @@ from typing import Tuple
 
 import torch
 
-import torch.nn.functional as F
-
 from diffusion.schedule import LinearScheduler, Scheduler
 
 from .diffuser import Diffuser
@@ -16,8 +14,12 @@ class GaussianDiffuser(Diffuser):
 
     _betas: torch.Tensor
     _alphas: torch.Tensor
+    _alphas_sqrt: torch.Tensor
     _alpha_hats: torch.Tensor
+    _alpha_hats_sqrt: torch.Tensor
+    _one_minus_alpha_hats_sqrt: torch.Tensor
 
+    @torch.no_grad()
     def __init__(
         self,
         num_steps: int,
@@ -35,44 +37,79 @@ class GaussianDiffuser(Diffuser):
         self.num_steps = num_steps
         self._betas = scheduler(torch.linspace(0.0, 1.0, num_steps))
         self._alphas = 1.0 - self._betas
-        # self._alphas = torch.clip(1.0 - self._betas, 1e-9, 9.9999e-1)
+        self._alphas_sqrt = torch.sqrt(self._alphas)
         self._alpha_hats = torch.cumprod(self._alphas, axis=0)
+        self._alpha_hats_sqrt = torch.sqrt(self._alpha_hats)
+        self._one_minus_alpha_hats_sqrt = torch.sqrt(1.0 - self._alpha_hats)
 
-
+    @torch.no_grad()
     def forward(
         self, images: torch.Tensor, t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """_summary_
+
+        Parameters
+        ----------
+        images : torch.Tensor
+            The images to be diffused.
+        t : torch.Tensor
+            The time step of the diffusion for each image.
+            Must be in the range [0, num_steps].
+
+        Returns
+        -------
+        Tuple[torch.Tensor, torch.Tensor]
+            A tuple containing the noised images and the applied noises.
+        """
         # Generate random noise for the image
         noise = torch.randn_like(images)
         # Evaluate the gamma function at the given time step for each image
         N = images.shape[0]
-        gamma_t = self._alpha_hats[t].reshape(shape=[N, 1, 1, 1])
+        gamma_sqrt_t = self.alpha_hats_sqrt[t].reshape(shape=[N, 1, 1, 1])
+        one_minus_gamma_sqrt_t = self._one_minus_alpha_hats_sqrt[t].reshape(
+            shape=[N, 1, 1, 1]
+        )
         # Apply the noise to the image
-        result = torch.sqrt(gamma_t) * images + torch.sqrt(1.0 - gamma_t) * noise
+        result = gamma_sqrt_t * images + one_minus_gamma_sqrt_t * noise
         result = torch.clamp(result, -1.0, 1.0)
         return result, noise
-    
+
+    @torch.no_grad()
     def reverse(
-            self, noised_images: torch.Tensor, predicted_noise: torch.Tensor, t: torch.Tensor
-        ) -> torch.Tensor:
-            """
-            Reverse the diffusion process to reconstruct the original images.
+        self,
+        noised_images: torch.Tensor,
+        predicted_noise: torch.Tensor,
+        t: torch.Tensor,
+    ) -> torch.Tensor:
+        """Reverse the diffusion process to reconstruct the original images.
 
-            Parameters:
-            - noised_images: Tensor of noised images after the diffusion process.
-            - noise: Tensor of noise applied during the diffusion process.
-            - t: Tensor representing the time step for each image.
+        Parameters
+        ----------
+        noised_images : torch.Tensor
+            The noised images after the diffusion process.
+        predicted_noise : torch.Tensor
+            The predicted noise from the diffusion model.
+        t : torch.Tensor
+            The time step for each image.
 
-            Returns:
-            Reconstructed images.
-            """
-            # Evaluate the gamma function at the given time step for each image
-            N = noised_images.shape[0]
-            gamma_t = self._alpha_hats[t].reshape(shape=[N, 1, 1, 1])
+        Returns
+        -------
+        torch.Tensor
+            The reconstructed images.
+        """
+        # Evaluate the gamma function at the given time step for each image
+        N = noised_images.shape[0]
+        gamma_sqrt_t = self._alpha_hats[t].reshape(shape=[N, 1, 1, 1])
+        one_minus_gamma_sqrt_t = self._one_minus_alpha_hats_sqrt[t].reshape(
+            shape=[N, 1, 1, 1]
+        )
+        # Reverse the diffusion process
+        reconstructed_images = (
+            noised_images - one_minus_gamma_sqrt_t * predicted_noise
+        ) / gamma_sqrt_t
+        reconstructed_images = torch.clamp(reconstructed_images, -1.0, 1.0)
+        return reconstructed_images
 
-            # Reverse the diffusion process
-            reconstructed_images = (noised_images - torch.sqrt(1.0 - gamma_t) * predicted_noise) / torch.sqrt(gamma_t)
-            reconstructed_images = torch.clamp(reconstructed_images, -1.0, 1.0)
-            return reconstructed_images
-
-     
+    @torch.no_grad()
+    def sample(self, x_t: torch.Tensor, t: torch.Tensor, prediction):
+        pass

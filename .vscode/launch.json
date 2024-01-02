@@ -34,6 +34,15 @@
             "console": "integratedTerminal",
             "args": ["out/train"],
             "justMyCode": true
+        },
+        {
+            "name": "Python: Evaluate Images",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/evaluate_images.py",
+            "console": "integratedTerminal",
+            "args": ["data/images/mnist"],
+            "justMyCode": true
         }
     ]
 }

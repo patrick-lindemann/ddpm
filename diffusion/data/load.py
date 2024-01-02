@@ -7,50 +7,72 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import transforms
-from torchvision.datasets import CIFAR10, LSUN, CelebA, VisionDataset
+from torchvision.datasets import (
+    CIFAR10,
+    LSUN,
+    MNIST,
+    CelebA,
+    FGVCAircraft,
+    VisionDataset,
+)
+
+from .transform import image_to_tensor
 
 
-def load_image(
+def load_images(
     file_path: pathlib.Path,
-    transformation: Optional[Callable] = transforms.ToTensor(),
+    transformation: Callable = image_to_tensor,
+    device: torch.device = torch.device("cpu"),
 ) -> torch.Tensor:
     """_summary_
 
     Parameters
     ----------
     file_path : pathlib.Path
-        _description_
-    transformation : Optional[Callable], optional
-        _description_, by default None
+        The path to the image. If it is a directory, all images in the directory are loaded.
+    transformation : Callable, optional
+        The transformation that is applied to the images, by default image_to_tensor()
+    device : torch.device, optional
+        The device, by default torch.device("cpu")
 
     Returns
     -------
     torch.Tensor
-        _description_
+        The tensor containing the images.
     """
-    image = Image.open(file_path)
-    tensor = transformation(image)
-    return tensor
+    if file_path.is_dir():
+        tensors: List[torch.Tensor] = []
+        for file in file_path.iterdir():
+            image = Image.open(file).convert("RGB")
+            tensor = transformation(image).to(device)
+            tensors.append(tensor)
+        return torch.stack(tensors)
+    else:
+        image = Image.open(file_path)
+        return transformation(image).to(device)
 
 
 def load_dataset(
-    name: Literal["cifar10", "lsun", "celeba"],
-    transform: Optional[Callable] = transforms.ToTensor(),
+    name: Literal["cifar10", "mnist", "aircraft", "lsun", "celeba"],
+    transform: Callable = image_to_tensor,
     download: bool = True,
     outdir: pathlib.Path = pathlib.Path("../data/datasets/"),
+    device: torch.device = torch.device("cpu"),
 ) -> VisionDataset:
     """_summary_
 
     Parameters
     ----------
-    name : Literal[&quot;cifar10&quot;, &quot;lsun&quot;, &quot;celeba&quot;]
+    name : Literal["cifar10", "minst", "aircraft", "lsun", "celeba"]
         _description_
-    transform : Optional[Callable], optional
-        _description_, by default transforms.ToTensor()
+    transform : Callable, optional
+        _description_, by default image_to_tensor()
     download : bool, optional
         _description_, by default True
     outdir : pathlib.Path, optional
         _description_, by default "../data/datasets/"
+    device : torch.device, optional
+        _description_, by default torch.device("cpu")
 
     Returns
     -------
@@ -68,15 +90,26 @@ def load_dataset(
         os.makedirs(outdir)
     # Download the dataset
     if name == "cifar10":
-        return CIFAR10(root=outdir, download=download, transform=transform)
+        return CIFAR10(
+            root=outdir, download=download, transform=transform, device=device
+        )
+    elif name == "mnist":
+        return MNIST(root=outdir, download=download, transform=transform, device=device)
+    elif name == "aircraft":
+        return FGVCAircraft(
+            root=outdir, download=download, transform=transform, device=device
+        )
     elif name == "celeba":
-        return CelebA(root=outdir, download=download, transform=transform)
+        return CelebA(
+            root=outdir, download=download, transform=transform, device=device
+        )
     elif name == "lsun":
         return LSUN(
             root=outdir,
             classes=["bedroom"],
             download=download,
             transform=transform,
+            device=device,
         )
     else:
         raise ValueError(f'Invalid dataset specified: "{name}".')
@@ -116,9 +149,7 @@ def split_dataset(
 
 
 def create_dataloader(
-    dataset: Dataset,
-    indices: Optional[torch.Tensor] = None,
-    batch_size: int = 16,
+    dataset: Dataset, indices: Optional[torch.Tensor] = None, batch_size: int = 16
 ) -> DataLoader:
     """_summary_
 

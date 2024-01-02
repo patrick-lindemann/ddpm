@@ -5,14 +5,9 @@ import pathlib
 from typing import List
 
 import torch
+from torchvision import transforms
 
-from diffusion.data import (
-    load_image,
-    plot_schedule,
-    reverse_transform_image,
-    save_image,
-    transform_image,
-)
+from diffusion.data import image_to_tensor, load_images, plot_schedule, save_image
 from diffusion.diffusion import GaussianDiffuser
 from diffusion.schedule import (
     CosineScheduler,
@@ -75,7 +70,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         type=str.lower,
-        help='The device to use.\nAllowed values: "CPU", "Cuda".',
+        help='The device to use.\nAllowed values: "cpu", "cuda".',
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
@@ -87,6 +82,7 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    device = torch.device(args.device)
 
     # Prepare the logger
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -126,11 +122,15 @@ if __name__ == "__main__":
 
     # Load the data
     logging.info(f'Loading image from "{args.image_path}"')
-    image = load_image(
+    image = load_images(
         args.image_path,
-        transformation=lambda image: transform_image(
-            image, size=(args.image_size, args.image_size)
+        transformation=transforms.Compose(
+            [
+                image_to_tensor,
+                transforms.Resize((args.image_size, args.image_size), antialias=True),
+            ]
         ),
+        device=device,
     )
     image = image.reshape(shape=[1, *image.shape])
 
@@ -147,15 +147,13 @@ if __name__ == "__main__":
     timeline_path = outdir / f"timeline.png"
     logging.info(f'Saving noising process timeline to "{timeline_path}".')
     timeline = torch.cat(noised_images, dim=2)
-    timeline = reverse_transform_image(timeline)
     save_image(timeline_path, timeline)
 
     # Export the individual images
     logging.info(f'Saving individual images to "{outdir}".')
     for i, noised_image in enumerate(noised_images):
-        data = reverse_transform_image(noised_image)
         file_path = outdir / f"image-{i + 1}.png"
-        save_image(file_path, data)
+        save_image(file_path, noised_image)
 
     # Export the schedule plot
     plot_path = outdir / "schedule-plot.svg"

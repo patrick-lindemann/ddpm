@@ -4,13 +4,14 @@ from typing import Callable, Optional
 import matplotlib.pyplot as plt
 import torch
 
-from .transform import reverse_transform_image
 from diffusion.schedule import Scheduler
+
+from .transform import tensor_to_image
 
 
 def plot_image(
     image: torch.Tensor,
-    transform: Callable = reverse_transform_image,
+    transform: Callable = tensor_to_image,
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
     """_summary_
@@ -100,7 +101,7 @@ def plot_denoising_results(
     image_restored: torch.Tensor,
     noise: torch.Tensor,
     noise_predicted: torch.Tensor,
-    transform: Callable = reverse_transform_image,
+    transform: Callable = tensor_to_image,
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
     """_summary_

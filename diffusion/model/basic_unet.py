@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import torchvision.transforms.functional as TF
 from torch import nn
@@ -29,10 +31,10 @@ class BasicUNet(nn.Module):
 
     def __init__(
         self,
-        in_channels=3,
-        out_channels=3,
-        features=[64, 128, 256, 512],
-    ):
+        in_channels: int = 3,
+        out_channels: int = 3,
+        features: List[int] = [64, 128, 256, 512],
+    ) -> None:
         """_summary_
 
         Parameters
@@ -66,7 +68,7 @@ class BasicUNet(nn.Module):
         self.bottleneck = DoubleConv(features[-1], features[-1] * 2)
         self.final_conv = nn.Conv2d(features[0], out_channels, kernel_size=1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         skip_connections = []
         for down in self.downs:
             x = down(x)

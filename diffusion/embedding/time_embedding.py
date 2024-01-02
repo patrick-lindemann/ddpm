@@ -7,7 +7,7 @@ class TimeEmbedding(nn.Module):
 
     dim: int
 
-    def __init__(self, dim: int, device: torch.device = torch.cpu) -> None:
+    def __init__(self, dim: int, device: torch.device = torch.device("cpu")) -> None:
         super().__init__()
         self.dim = dim
         self.device = device
@@ -18,7 +18,7 @@ class SinusodialTimeEmbedding(TimeEmbedding):
 
     _embedding_vector: torch.Tensor
 
-    def __init__(self, dim: int, device: torch.device = torch.cpu) -> None:
+    def __init__(self, dim: int, device: torch.device = torch.device("cpu")) -> None:
         super().__init__(dim=dim, device=device)
         self._embedding_vector = torch.exp(
             -torch.arange(dim // 2, device=device) * torch.log(10000) / (dim // 2 - 1)

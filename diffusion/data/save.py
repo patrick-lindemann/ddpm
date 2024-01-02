@@ -1,16 +1,16 @@
-import json
 import pathlib
+from typing import Callable, Optional
 
-import numpy
 import torch
-from PIL.Image import Image
 from torchvision import transforms
 
-from diffusion.schedule import Scheduler
+from .transform import tensor_to_image
 
 
 def save_image(
-    file_path: pathlib.Path, image: Image | numpy.ndarray | torch.Tensor
+    file_path: pathlib.Path,
+    image: torch.Tensor,
+    transform: Optional[Callable] = tensor_to_image,
 ) -> None:
     """_summary_
 
@@ -20,7 +20,9 @@ def save_image(
         _description_
     data : torch.Tensor
         _description_
+    transform : Optional[Callable], optional
+        _description_, by default tensor_to_image
     """
-    if isinstance(image, numpy.ndarray) or isinstance(image, torch.Tensor):
-        image = transforms.ToPILImage()(image)
-    image.save(file_path)
+    transform = transforms.Compose([transform, transforms.ToPILImage()])
+    image_transformed = transform(image)
+    image_transformed.save(file_path)
