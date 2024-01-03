@@ -6,5 +6,9 @@
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
     },
+    "isort.args": [
+        "--profile",
+        "black"
+    ],
     "editor.formatOnSave": true
 }
