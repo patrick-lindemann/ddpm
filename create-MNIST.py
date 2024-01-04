@@ -1,20 +1,15 @@
 import torch
-from torch import nn
 import numpy as np
 import matplotlib.pyplot as plt
 from torchvision import transforms
-import torchvision
 from diffusers import UNet2DModel
-import matplotlib.image
 
-from PIL import Image
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 IMG_SIZE = 32
-BATCH_SIZE = 64
-NO_EPOCHS = 20
 TIME_STEPS = 300
+
 
 class diffusion:
     def __init__(self, timesteps, scheduler_type=None):
@@ -75,14 +70,14 @@ class diffusion:
         else:
             noise = torch.randn_like(x_t)
             return x_t_minus_one + torch.sqrt(betas_t) * noise
-        
+
     def create_image(self, model, img_size=32, timesteps=300, num_channels=3):
         with torch.no_grad():
             img = torch.randn((1, num_channels, img_size, img_size))
             # plt.figure(figsize=(15, 2))
             # plt.axis("off")
-            num_images = 10
-            stepsize = int(timesteps / num_images)
+            # num_images = 10
+            # stepsize = int(timesteps / num_images)
 
             for i in range(0, timesteps)[::-1]:
                 t = torch.full((1,), i, dtype=torch.long)
@@ -100,7 +95,6 @@ class diffusion:
             #         plt.imshow(undo_transform(img.cpu()[0]))
             # plt.show()
             return img.cpu()[0]
-
 
 
 transform = transforms.Compose(
@@ -121,11 +115,12 @@ undo_transform = transforms.Compose(
 
 diffuser = diffusion(timesteps=TIME_STEPS)
 
-model_new = UNet2DModel().from_pretrained('./model_MNIST_checkpoint/')
+model_new = UNet2DModel().from_pretrained("./checkpoints/model_MNIST_checkpoint")
 model_new = model_new.to(device)
 
 for i in range(100):
-    img = diffuser.create_image(model_new, img_size=IMG_SIZE, timesteps=TIME_STEPS, num_channels=1)
+    img = diffuser.create_image(
+        model_new, img_size=IMG_SIZE, timesteps=TIME_STEPS, num_channels=1
+    )
     img = undo_transform(img).squeeze()
-    plt.imsave(f'MNIST-images/MNIST_{i}.png', img, cmap='gray')
-
+    plt.imsave(f"./data/images/mnist/MNIST_{i}.png", img, cmap="gray")
