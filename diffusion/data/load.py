@@ -6,11 +6,10 @@ import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision import transforms
 from torchvision.datasets import (
     CIFAR10,
     LSUN,
-    MNIST,
+    QMNIST,
     CelebA,
     FGVCAircraft,
     VisionDataset,
@@ -90,26 +89,19 @@ def load_dataset(
         os.makedirs(outdir)
     # Download the dataset
     if name == "cifar10":
-        return CIFAR10(
-            root=outdir, download=download, transform=transform, device=device
-        )
+        return CIFAR10(root=outdir, download=download, transform=transform)
     elif name == "mnist":
-        return MNIST(root=outdir, download=download, transform=transform, device=device)
+        return QMNIST(root=outdir, download=download, transform=transform)
     elif name == "aircraft":
-        return FGVCAircraft(
-            root=outdir, download=download, transform=transform, device=device
-        )
+        return FGVCAircraft(root=outdir, download=download, transform=transform)
     elif name == "celeba":
-        return CelebA(
-            root=outdir, download=download, transform=transform, device=device
-        )
+        return CelebA(root=outdir, download=download, transform=transform)
     elif name == "lsun":
         return LSUN(
             root=outdir,
             classes=["bedroom"],
             download=download,
             transform=transform,
-            device=device,
         )
     else:
         raise ValueError(f'Invalid dataset specified: "{name}".')
