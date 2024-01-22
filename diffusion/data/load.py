@@ -15,6 +15,8 @@ from torchvision.datasets import (
     VisionDataset,
 )
 
+from diffusion.paths import DATA_DIR
+
 from .transform import image_to_tensor
 
 
@@ -55,7 +57,7 @@ def load_dataset(
     name: Literal["cifar10", "mnist", "aircraft", "lsun", "celeba"],
     transform: Callable = image_to_tensor,
     download: bool = True,
-    outdir: pathlib.Path = pathlib.Path("../data/datasets/"),
+    outdir: pathlib.Path = DATA_DIR / "datasets",
     device: torch.device = torch.device("cpu"),
 ) -> VisionDataset:
     """_summary_
@@ -128,7 +130,6 @@ def split_dataset(
     Tuple[List[int], List[int]]
         _description_
     """
-    # Generate the train and test indices
     train_indices, test_indices, _, _ = train_test_split(
         range(len(dataset)),
         dataset.targets,
@@ -159,6 +160,7 @@ def create_dataloader(
     DataLoader
         _description_
     """
+    assert batch_size <= len(indices)
     if indices is not None:
         dataset = Subset(dataset, indices)
     return DataLoader(dataset, batch_size=batch_size)
