@@ -3,12 +3,16 @@ import json
 import logging
 import os
 import pathlib
-from typing import List
 
 import torch
 from tqdm import tqdm
 
-from diffusion.data import create_dataloader, load_dataset, plot_loss, split_dataset
+from diffusion.data import (
+    create_dataloader,
+    load_dataset,
+    plot_loss,
+    split_dataset,
+)
 from diffusion.diffusion import GaussianDiffuser
 from diffusion.model import BasicUNet
 from diffusion.schedule import (
@@ -25,7 +29,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str.lower,
-        help='The name of the dataset.\nAllowed values: "CelebA", "CIFAR10", "LSUN".',
+        help='The name of the dataset.\nAllowed values: "CelebA", "MNIST", "FGVCAircraft", "CIFAR10", "LSUN".',
         default="CIFAR10",
     )
     parser.add_argument(
@@ -103,6 +107,7 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    device = torch.device(args.device)
 
     # Prepare the logger
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -133,7 +138,9 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(num_steps=args.schedule_steps, scheduler=scheduler)
+    diffuser = GaussianDiffuser(
+        num_steps=args.schedule_steps, scheduler=scheduler, device=device
+    )
 
     # Prepare the output directory
     if not args.outdir.exists():
@@ -141,13 +148,13 @@ if __name__ == "__main__":
 
     # Load the data
     logging.info("Loading dataset.")
-    dataset = load_dataset(args.dataset)
+    dataset = load_dataset(args.dataset, device=device)
     train_indices, test_indices = split_dataset(dataset, train_size=args.train_size)
     train_loader = create_dataloader(dataset, train_indices, batch_size=args.batch_size)
 
     # Prepare the model
     model = BasicUNet(in_channels=3, out_channels=3)
-    # model.to(args.device)
+    model.to(device)
     loss_func = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
@@ -156,7 +163,7 @@ if __name__ == "__main__":
         f"Starting training for {args.epochs} epochs with batch size {args.batch_size}."
     )
     train_iter = iter(train_loader)
-    losses: List[float] = []
+    losses: torch.zeros(args.epochs, dtype=torch.float32, device=device)
     for epoch in tqdm(range(args.epochs)):
         # Retrieve the next batch of images
         image_batch, _ = next(train_iter)
@@ -167,7 +174,7 @@ if __name__ == "__main__":
         # Predict the noise for the noised images and calculate the loss
         predicted_noise_batch = model(noised_image_batch.float())
         loss = loss_func(predicted_noise_batch, noise_batch)
-        losses.append(loss.item())
+        losses[epoch] = loss.item()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

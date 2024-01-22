@@ -5,12 +5,9 @@ import os
 import pathlib
 
 import torch
+from tqdm import tqdm
 
-from diffusion.data import (
-    create_dataloader,
-    load_dataset,
-    plot_denoising_results,
-)
+from diffusion.data.save import save_image
 from diffusion.diffusion import GaussianDiffuser
 from diffusion.model import BasicUNet
 from diffusion.schedule import (
@@ -21,6 +18,9 @@ from diffusion.schedule import (
     SigmoidScheduler,
 )
 
+"""TODO: Get this from somewhere, since this is dependent on the model. Maybe metadata?"""
+IMAGE_SIZE = 64
+
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -30,10 +30,10 @@ def get_args() -> argparse.Namespace:
         help="The path to the model to test.\nThe model directory needs to contain a model.pt and a metadata.json file.",
     )
     parser.add_argument(
-        "--time-step",
+        "--num-images",
         type=int,
-        help="The time step to evaluate the denoiser at.",
-        default=None,
+        help="The number of images to generate.",
+        default=10,
     )
     parser.add_argument(
         "--device",
@@ -45,7 +45,7 @@ def get_args() -> argparse.Namespace:
         "--outdir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default="./out/test",
+        default="./out/generated",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."
@@ -61,11 +61,7 @@ if __name__ == "__main__":
     # Prepare the logger
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
-    # Prepare the output directory
-    if not args.outdir.exists():
-        os.makedirs(args.outdir)
-
-    # Load the model
+    # Load the trained model
     model_path = args.model_dir / "model.pt"
     logging.info(f"Loading model from {model_path}.")
     model = BasicUNet(in_channels=3, out_channels=3)
@@ -77,6 +73,11 @@ if __name__ == "__main__":
     logging.info(f"Loading metadata from {metadata_path}.")
     with open(metadata_path, "r") as file:
         metadata = json.load(file)
+
+    # Prepare the output directory
+    outdir = args.outdir / metadata["dataset"]["name"]
+    if not args.outdir.exists():
+        os.makedirs(args.outdir)
 
     # Prepare the scheduler
     scheduler: Scheduler
@@ -106,38 +107,26 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown scheduler: {metadata['schedule']['type']}")
 
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(
-        num_steps=metadata["schedule"]["steps"], scheduler=scheduler, device=device
-    )
+    num_steps = metadata["schedule"]["steps"]
+    diffuser = GaussianDiffuser(num_steps=num_steps, scheduler=scheduler, device=device)
 
-    # Load the data
-    logging.info("Loading dataset.")
-    dataset = load_dataset(metadata["dataset"]["name"], device=device)
-    test_loader = create_dataloader(
-        dataset,
-        indices=metadata["dataset"]["indices"]["test"],
-        batch_size=metadata["dataset"]["batch_size"],
-    )
-
-    # Test the trained model
+    # Generate the images
+    logging.info(f"Generating {args.num_images} images.")
     with torch.no_grad():
-        image_batch, _ = next(iter(test_loader))
-        image = image_batch[0].unsqueeze(0)
-        # Use the given time step if specified, otherwise choose a random one
-        t = (
-            torch.tensor([args.time_step])
-            if args.time_step is not None
-            else torch.randint(0, metadata["schedule"]["steps"], size=(1,))
+        images = torch.zeros(
+            (args.num_images, 3, IMAGE_SIZE, IMAGE_SIZE), device=device
         )
-        image_noised, noise = diffuser.forward(image, t)
-        noise_predicted = model.forward(image_noised)
-        image_restored = torch.clamp(image_noised - noise_predicted, -1.0, 1.0)
-    # Plot the results
-    plot_denoising_results(
-        t=t,
-        image_noised=image_noised,
-        image_restored=image_restored,
-        noise=noise,
-        noise_predicted=noise_predicted,
-        file_path=args.outdir / "test-result.svg",
-    )
+        for i in tqdm(reversed(range(0, num_steps))):
+            # Generate random noise
+            noise = torch.randn((1, 3, IMAGE_SIZE, IMAGE_SIZE), device=device)
+            t = torch.full((1,), i, dtype=torch.long, device=device)
+            prediction = model(noise, t).sample
+            image = diffuser.sample(noise, t, prediction)
+            image = torch.clamp(image, -1.0, 1.0)
+            images[i] = image.squeeze()
+
+    # Save the images
+    logging.info(f"Saving images to {args.outdir}.")
+    for i, image in enumerate(images):
+        save_image(outdir / f"{i}.png", image)
+    logging.info("Done.")

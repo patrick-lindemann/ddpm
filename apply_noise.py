@@ -2,12 +2,16 @@ import argparse
 import logging
 import os
 import pathlib
-from typing import List
 
 import torch
 from torchvision import transforms
 
-from diffusion.data import image_to_tensor, load_images, plot_schedule, save_image
+from diffusion.data import (
+    image_to_tensor,
+    load_images,
+    plot_schedule,
+    save_image,
+)
 from diffusion.diffusion import GaussianDiffuser
 from diffusion.schedule import (
     CosineScheduler,
@@ -113,7 +117,9 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown scheduler: {args.scheduler}")
 
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(num_steps=args.schedule_steps, scheduler=scheduler)
+    diffuser = GaussianDiffuser(
+        num_steps=args.schedule_steps, scheduler=scheduler, device=device
+    )
 
     # Prepare the output directory
     outdir = args.outdir / args.schedule
@@ -138,15 +144,19 @@ if __name__ == "__main__":
     logging.info(
         f"Applying noise to image for {args.schedule_steps} time steps with {args.schedule} schedule."
     )
-    noised_images: List[torch.Tensor] = []
+    noised_images = torch.zeros(
+        (args.schedule_steps, *image.squeeze().shape), device=device
+    )
     for t in range(args.schedule_steps):
-        result, _ = diffuser.forward(image, torch.tensor([t]))
-        noised_images.append(result[0])
+        noised_image, _ = diffuser.forward(image, torch.tensor([t]))
+        noised_images[t] = noised_image.squeeze()
 
     # Export the noise process results
     timeline_path = outdir / f"timeline.png"
     logging.info(f'Saving noising process timeline to "{timeline_path}".')
-    timeline = torch.cat(noised_images, dim=2)
+    timeline = torch.cat(
+        torch.unbind(noised_images, dim=0), dim=2
+    )  # concatenate along the width dimension
     save_image(timeline_path, timeline)
 
     # Export the individual images
