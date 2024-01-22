@@ -1,1 +1,1 @@
-from .inception_score import calculate_inception_score
+from .inception_score import *
