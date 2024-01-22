@@ -1,5 +1,5 @@
-import torch
 import numpy
+import torch
 
 from .scheduler import Scheduler
 
@@ -41,7 +41,7 @@ class SigmoidScheduler(Scheduler):
 
         Parameters
         ----------
-        x : torch.Tensor
+        t : torch.Tensor
             _description_
 
         Returns
