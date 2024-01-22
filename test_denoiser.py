@@ -12,7 +12,7 @@ from diffusion.data import (
     plot_denoising_results,
 )
 from diffusion.diffusion import GaussianDiffuser
-from diffusion.model import BasicUNet
+from diffusion.model import DiffusionUNet
 from diffusion.schedule import (
     CosineScheduler,
     LinearScheduler,
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     # Load the model
     model_path = args.model_dir / "model.pt"
     logging.info(f"Loading model from {model_path}.")
-    model = BasicUNet(in_channels=3, out_channels=3)
+    model = DiffusionUNet(sample_size=)
     model.load_state_dict(torch.load(model_path))
     model.to(device)
 

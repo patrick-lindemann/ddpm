@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from diffusion.data.save import save_image
 from diffusion.diffusion import GaussianDiffuser
-from diffusion.model import BasicUNet
+from diffusion.paths import OUT_DIR
 from diffusion.schedule import (
     CosineScheduler,
     LinearScheduler,
@@ -45,7 +45,7 @@ def get_args() -> argparse.Namespace:
         "--outdir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default="./out/generated",
+        default=OUT_DIR / "generated",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."

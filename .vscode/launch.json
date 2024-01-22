@@ -23,7 +23,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/train_denoiser.py",
             "console": "integratedTerminal",
-            "args": ["--epochs", "10", "--schedule", "cosine"],
+            "args": ["cifar10", "--batch-size", "16", "--epochs", "1", "--schedule", "cosine"],
             "justMyCode": true
         },
         {

@@ -13,6 +13,7 @@ from diffusion.data import (
     save_image,
 )
 from diffusion.diffusion import GaussianDiffuser
+from diffusion.paths import OUT_DIR
 from diffusion.schedule import (
     CosineScheduler,
     LinearScheduler,
@@ -69,7 +70,7 @@ def get_args() -> argparse.Namespace:
         "--outdir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default="./out/forward",
+        default=OUT_DIR / "forward",
     )
     parser.add_argument(
         "--device",
