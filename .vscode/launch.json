@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -10,7 +10,7 @@
         },
         {
             "name": "Python: Apply Noise",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/apply_noise.py",
             "console": "integratedTerminal",
@@ -19,7 +19,7 @@
         },
         {
             "name": "Python: Train Denoiser",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/train_denoiser.py",
             "console": "integratedTerminal",
@@ -28,7 +28,7 @@
         },
         {
             "name": "Python: Test Denoiser",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/test_denoiser.py",
             "console": "integratedTerminal",
@@ -37,7 +37,7 @@
         },
         {
             "name": "Python: Evaluate Images",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/evaluate_images.py",
             "console": "integratedTerminal",
