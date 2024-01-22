@@ -7,6 +7,18 @@ import torch
 class Diffuser(ABC):
     """_summary_"""
 
+    device: torch.device
+
+    def __init__(self, device: torch.device = torch.device("cpu")) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        device : torch.device, optional
+            _description_, by default torch.device("cpu")
+        """
+        self.device = device
+
     @abstractmethod
     def forward(
         self, images: torch.Tensor, t: torch.Tensor

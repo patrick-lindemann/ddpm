@@ -13,6 +13,7 @@ class GaussianDiffuser(Diffuser):
     num_steps: int
 
     _betas: torch.Tensor
+    _betas_sqrt: torch.Tensor
     _alphas: torch.Tensor
     _alphas_sqrt: torch.Tensor
     _alpha_hats: torch.Tensor
@@ -24,6 +25,7 @@ class GaussianDiffuser(Diffuser):
         self,
         num_steps: int,
         scheduler: Scheduler = LinearScheduler(),
+        device: torch.device = torch.device("cpu"),
     ) -> None:
         """_summary_
 
@@ -33,9 +35,13 @@ class GaussianDiffuser(Diffuser):
             _description_
         scheduler : Scheduler, optional
             _description_, by default LinearScheduler()
+        device : torch.device, optional
+            _description_, by default torch.device("cpu")
         """
+        super().__init__(device)
         self.num_steps = num_steps
-        self._betas = scheduler(torch.linspace(0.0, 1.0, num_steps))
+        self._betas = scheduler(torch.linspace(0.0, 1.0, num_steps)).to(self.device)
+        self._betas_sqrt = torch.sqrt(self._betas)
         self._alphas = 1.0 - self._betas
         self._alphas_sqrt = torch.sqrt(self._alphas)
         self._alpha_hats = torch.cumprod(self._alphas, axis=0)
@@ -62,10 +68,10 @@ class GaussianDiffuser(Diffuser):
             A tuple containing the noised images and the applied noises.
         """
         # Generate random noise for the image
-        noise = torch.randn_like(images)
+        noise = torch.randn_like(images, device=self.device)
         # Evaluate the gamma function at the given time step for each image
         N = images.shape[0]
-        gamma_sqrt_t = self.alpha_hats_sqrt[t].reshape(shape=[N, 1, 1, 1])
+        gamma_sqrt_t = self._alpha_hats_sqrt[t].reshape(shape=[N, 1, 1, 1])
         one_minus_gamma_sqrt_t = self._one_minus_alpha_hats_sqrt[t].reshape(
             shape=[N, 1, 1, 1]
         )
@@ -111,5 +117,31 @@ class GaussianDiffuser(Diffuser):
         return reconstructed_images
 
     @torch.no_grad()
-    def sample(self, x_t: torch.Tensor, t: torch.Tensor, prediction):
-        pass
+    def sample(self, x_t: torch.Tensor, t: torch.Tensor, prediction: torch.Tensor):
+        """_summary_
+
+        Parameters
+        ----------
+        x_t : torch.Tensor
+            _description_
+        t : torch.Tensor
+            _description_
+        prediction : torch.Tensor
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        # Calculate x_(t-1)
+        result = (1 / self._alphas_sqrt[t]) * (
+            x_t - ((self._betas[t] * prediction) / self._one_minus_alpha_hats_sqrt[t])
+        )
+        if t == 0:
+            # Timestep is 0, return the result as is
+            return result
+        # Add random noise to the result
+        noise = torch.randn_like(x_t, device=self.device)
+        result += self._betas_sqrt[t] * noise
+        return result
