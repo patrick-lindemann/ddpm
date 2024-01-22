@@ -23,6 +23,7 @@ def save_image(
     transform : Optional[Callable], optional
         _description_, by default tensor_to_image
     """
+    image = image.to("cpu")
     transform = transforms.Compose([transform, transforms.ToPILImage()])
     image_transformed = transform(image)
     image_transformed.save(file_path)
