@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from diffusion.data.save import save_image
 from diffusion.diffusion import GaussianDiffuser
+from diffusion.model import DiffusionModel
 from diffusion.paths import OUT_DIR
 from diffusion.schedule import (
     CosineScheduler,
@@ -17,9 +18,6 @@ from diffusion.schedule import (
     Scheduler,
     SigmoidScheduler,
 )
-
-"""TODO: Get this from somewhere, since this is dependent on the model. Maybe metadata?"""
-IMAGE_SIZE = 64
 
 
 def get_args() -> argparse.Namespace:
@@ -57,16 +55,10 @@ if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
     device = torch.device(args.device)
+    args.outdir = args.outdir / args.model_dir.name
 
     # Prepare the logger
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-
-    # Load the trained model
-    model_path = args.model_dir / "model.pt"
-    logging.info(f"Loading model from {model_path}.")
-    model = BasicUNet(in_channels=3, out_channels=3)
-    model.load_state_dict(torch.load(model_path))
-    model.to(device)
 
     # Load the metadata
     metadata_path = args.model_dir / "metadata.json"
@@ -74,8 +66,14 @@ if __name__ == "__main__":
     with open(metadata_path, "r") as file:
         metadata = json.load(file)
 
+    # Load the trained model
+    model_path = args.model_dir / "model.pt"
+    logging.info(f"Loading model from {model_path}.")
+    model = DiffusionModel(**metadata["model"])
+    model.load_state_dict(torch.load(model_path))
+    model.to(device)
+
     # Prepare the output directory
-    outdir = args.outdir / metadata["dataset"]["name"]
     if not args.outdir.exists():
         os.makedirs(args.outdir)
 
@@ -112,21 +110,24 @@ if __name__ == "__main__":
 
     # Generate the images
     logging.info(f"Generating {args.num_images} images.")
+    sample_size = metadata["model"]["sample_size"]
     with torch.no_grad():
         images = torch.zeros(
-            (args.num_images, 3, IMAGE_SIZE, IMAGE_SIZE), device=device
+            (args.num_images, 3, sample_size, sample_size), device=device
         )
-        for i in tqdm(reversed(range(0, num_steps))):
-            # Generate random noise
-            noise = torch.randn((1, 3, IMAGE_SIZE, IMAGE_SIZE), device=device)
-            t = torch.full((1,), i, dtype=torch.long, device=device)
-            prediction = model(noise, t).sample
-            image = diffuser.sample(noise, t, prediction)
-            image = torch.clamp(image, -1.0, 1.0)
-            images[i] = image.squeeze()
+        for index in tqdm(range(args.num_images)):
+            for i in reversed(range(0, num_steps)):
+                # Generate random noise
+                noise = torch.randn((1, 3, sample_size, sample_size), device=device)
+                t = torch.full((1,), i, dtype=torch.long, device=device)
+                prediction = model(noise, t).sample
+                image = diffuser.sample(noise, t, prediction)
+                image = torch.clamp(image, -1.0, 1.0)
+                images[index] = image.squeeze()
+            break
 
     # Save the images
     logging.info(f"Saving images to {args.outdir}.")
     for i, image in enumerate(images):
-        save_image(outdir / f"{i}.png", image)
+        save_image(args.outdir / f"{i}.png", image)
     logging.info("Done.")

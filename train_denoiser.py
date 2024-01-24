@@ -190,7 +190,7 @@ if __name__ == "__main__":
     train_loader = create_dataloader(dataset, train_indices, batch_size=args.batch_size)
 
     # Prepare the model
-    model = DiffusionModel(sample_size=args.sample_size, dropout=args.dropout_rate)
+    model = DiffusionModel(sample_size=args.sample_size, dropout_rate=args.dropout_rate)
     model.to(device)
     loss_func = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)

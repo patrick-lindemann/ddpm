@@ -27,12 +27,12 @@
             "justMyCode": true
         },
         {
-            "name": "Python: Test Denoiser",
+            "name": "Python: Generate Images",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/test_denoiser.py",
+            "program": "${workspaceFolder}/generate_images.py",
             "console": "integratedTerminal",
-            "args": ["out/train"],
+            "args": ["out/train/1706115356_cifar10_cosine"],
             "justMyCode": true
         },
         {
@@ -41,7 +41,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/evaluate_images.py",
             "console": "integratedTerminal",
-            "args": ["data/images/mnist"],
+            "args": ["out/generated7/1706115356_cifar10_cosine"],
             "justMyCode": true
         }
     ]
