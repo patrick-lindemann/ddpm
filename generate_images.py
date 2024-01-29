@@ -108,26 +108,16 @@ if __name__ == "__main__":
     num_steps = metadata["schedule"]["steps"]
     diffuser = GaussianDiffuser(num_steps=num_steps, scheduler=scheduler, device=device)
 
-    # Generate the images
-    logging.info(f"Generating {args.num_images} images.")
+    # Generate and save the images
+    logging.info(f"Generating {args.num_images} images to dir {args.outdir}.")
     sample_size = metadata["model"]["sample_size"]
     with torch.no_grad():
-        images = torch.zeros(
-            (args.num_images, 3, sample_size, sample_size), device=device
-        )
         for index in tqdm(range(args.num_images)):
-            for i in reversed(range(0, num_steps)):
-                # Generate random noise
+            for i in reversed(tqdm(range(0, num_steps), leave=False)):
                 noise = torch.randn((1, 3, sample_size, sample_size), device=device)
                 t = torch.full((1,), i, dtype=torch.long, device=device)
                 prediction = model(noise, t).sample
                 image = diffuser.sample(noise, t, prediction)
                 image = torch.clamp(image, -1.0, 1.0)
-                images[index] = image.squeeze()
-            break
-
-    # Save the images
-    logging.info(f"Saving images to {args.outdir}.")
-    for i, image in enumerate(images):
-        save_image(args.outdir / f"{i}.png", image)
+            save_image(args.outdir / f"{i}.png", image.squeeze())
     logging.info("Done.")
