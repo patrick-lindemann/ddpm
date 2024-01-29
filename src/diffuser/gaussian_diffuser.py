@@ -2,7 +2,7 @@ from typing import Tuple
 
 import torch
 
-from diffusion.schedule import LinearScheduler, Scheduler
+from src.schedule import LinearScheduler, Scheduler
 
 from .diffuser import Diffuser
 
@@ -71,12 +71,12 @@ class GaussianDiffuser(Diffuser):
         noise = torch.randn_like(images, device=self.device)
         # Evaluate the gamma function at the given time step for each image
         N = images.shape[0]
-        gamma_sqrt_t = self._alpha_hats_sqrt[t].reshape(shape=[N, 1, 1, 1])
-        one_minus_gamma_sqrt_t = self._one_minus_alpha_hats_sqrt[t].reshape(
+        alpha_sqrt_t = self._alpha_hats_sqrt[t].reshape(shape=[N, 1, 1, 1])
+        one_minus_alpha_sqrt_t = self._one_minus_alpha_hats_sqrt[t].reshape(
             shape=[N, 1, 1, 1]
         )
         # Apply the noise to the image
-        result = gamma_sqrt_t * images + one_minus_gamma_sqrt_t * noise
+        result = alpha_sqrt_t * images + one_minus_alpha_sqrt_t * noise
         result = torch.clamp(result, -1.0, 1.0)
         return result, noise
 

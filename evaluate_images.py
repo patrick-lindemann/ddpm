@@ -4,8 +4,8 @@ import pathlib
 
 import torch
 
-from diffusion.data import load_images
-from diffusion.eval import calculate_inception_score
+from src.data import load_images
+from src.eval import calculate_inception_score
 
 
 def get_args() -> argparse.Namespace:
