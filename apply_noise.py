@@ -6,15 +6,10 @@ import pathlib
 import torch
 from torchvision import transforms
 
-from diffusion.data import (
-    image_to_tensor,
-    load_images,
-    plot_schedule,
-    save_image,
-)
-from diffusion.diffusion import GaussianDiffuser
-from diffusion.paths import OUT_DIR
-from diffusion.schedule import (
+from src.data import image_to_tensor, load_images, plot_schedule, save_image
+from src.diffuser import GaussianDiffuser
+from src.paths import OUT_DIR
+from src.schedule import (
     CosineScheduler,
     LinearScheduler,
     PolynomialScheduler,

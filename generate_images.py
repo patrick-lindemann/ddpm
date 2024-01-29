@@ -7,11 +7,11 @@ import pathlib
 import torch
 from tqdm import tqdm
 
-from diffusion.data.save import save_image
-from diffusion.diffusion import GaussianDiffuser
-from diffusion.model import DiffusionModel
-from diffusion.paths import OUT_DIR
-from diffusion.schedule import (
+from src.data import save_image, tensor_to_image
+from src.diffuser import GaussianDiffuser
+from src.model import DiffusionModel
+from src.paths import OUT_DIR
+from src.schedule import (
     CosineScheduler,
     LinearScheduler,
     PolynomialScheduler,
@@ -32,6 +32,12 @@ def get_args() -> argparse.Namespace:
         type=int,
         help="The number of images to generate.",
         default=10,
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for generating images",
+        default=1,
     )
     parser.add_argument(
         "--device",
@@ -112,12 +118,14 @@ if __name__ == "__main__":
     logging.info(f"Generating {args.num_images} images to dir {args.outdir}.")
     sample_size = metadata["model"]["sample_size"]
     with torch.no_grad():
-        for index in tqdm(range(args.num_images)):
-            for i in reversed(tqdm(range(0, num_steps), leave=False)):
+        for i in tqdm(range(args.num_images)):
+            for step in reversed(tqdm(range(0, num_steps), leave=False)):
                 noise = torch.randn((1, 3, sample_size, sample_size), device=device)
-                t = torch.full((1,), i, dtype=torch.long, device=device)
+                t = torch.full((1,), step, dtype=torch.long, device=device)
                 prediction = model(noise, t).sample
                 image = diffuser.sample(noise, t, prediction)
                 image = torch.clamp(image, -1.0, 1.0)
-            save_image(args.outdir / f"{i}.png", image.squeeze())
+            save_image(
+                args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
+            )
     logging.info("Done.")

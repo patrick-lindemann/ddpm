@@ -16,7 +16,7 @@ from torchvision.datasets import (
     VisionDataset,
 )
 
-from diffusion.paths import DATA_DIR
+from src.paths import DATA_DIR
 
 from .transform import image_to_tensor
 

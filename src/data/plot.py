@@ -4,7 +4,7 @@ from typing import Callable, Optional
 import matplotlib.pyplot as plt
 import torch
 
-from diffusion.schedule import Scheduler
+from src.schedule import Scheduler
 
 from .transform import tensor_to_image
 

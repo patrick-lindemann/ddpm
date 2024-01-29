@@ -9,16 +9,11 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 
-from diffusion.data import (
-    create_dataloader,
-    load_dataset,
-    plot_loss,
-    split_dataset,
-)
-from diffusion.diffusion import GaussianDiffuser
-from diffusion.model import DiffusionModel
-from diffusion.paths import OUT_DIR
-from diffusion.schedule import (
+from src.data import create_dataloader, load_dataset, plot_loss, split_dataset
+from src.diffuser import GaussianDiffuser
+from src.model import DiffusionModel
+from src.paths import OUT_DIR
+from src.schedule import (
     CosineScheduler,
     LinearScheduler,
     PolynomialScheduler,
