@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import pathlib
 
 import torch
@@ -44,5 +43,4 @@ if __name__ == "__main__":
     # Calculate the inception scores
     logging.info("Calculating inception score.")
     score, _ = calculate_inception_score(images, batch_size=10, device=device)
-    # Round to 4 decimal places
     logging.info(f"Inception score: {score:.4f}")
