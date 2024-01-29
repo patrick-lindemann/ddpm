@@ -183,11 +183,13 @@ if __name__ == "__main__":
 
     # Load the data
     logging.info("Loading dataset.")
-    dataset = load_dataset(args.dataset, device=device)
+    dataset = load_dataset(args.dataset)
     train_indices, test_indices = split_dataset(
         dataset, train_size=args.train_split_size
     )
-    train_loader = create_dataloader(dataset, train_indices, batch_size=args.batch_size)
+    train_loader = create_dataloader(
+        dataset, train_indices, batch_size=args.batch_size, device=device
+    )
 
     # Prepare the model
     model = DiffusionModel(sample_size=args.sample_size, dropout_rate=args.dropout_rate)
@@ -205,12 +207,12 @@ if __name__ == "__main__":
     epoch_losses = torch.zeros(args.epochs, dtype=torch.float32, device=device)
     for epoch in tqdm(range(args.epochs)):
         epoch_loss_sum = 0
-        for step, batch in enumerate(train_loader):
+        for step, batch in enumerate(tqdm(train_loader, leave=False)):
             optimizer.zero_grad()
             image_batch = batch[0]
             # Select a random time step for each image in the batch and apply the
             # noise for that time step
-            t = torch.randint(0, args.schedule_steps, (args.batch_size,))
+            t = torch.randint(0, args.schedule_steps, (args.batch_size,), device=device)
             noised_image_batch, noise_batch = diffuser.forward(image_batch, t)
             # Predict the noise for the noised images and calculate the loss
             predicted_noise_batch = model(noised_image_batch.float(), t).sample
@@ -219,7 +221,6 @@ if __name__ == "__main__":
             # Backpropagate the loss and update the model parameters
             loss.backward()
             optimizer.step()
-            break
         epoch_loss = epoch_loss_sum / len(dataset)
         epoch_losses[epoch] = epoch_loss
         # Update the learning rate
@@ -275,7 +276,7 @@ if __name__ == "__main__":
     losses_path = args.outdir / "train-loss.svg"
     logging.info(f"Saving loss plot to {losses_path}.")
     plot_loss(
-        losses=epoch_losses,
+        losses=epoch_losses.cpu(),
         file_path=losses_path,
     )
 

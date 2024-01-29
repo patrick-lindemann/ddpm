@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data.dataloader import default_collate
 from torchvision.datasets import (
     CIFAR10,
     LSUN,
@@ -58,7 +59,6 @@ def load_dataset(
     transform: Callable = image_to_tensor,
     download: bool = True,
     outdir: pathlib.Path = DATA_DIR / "datasets",
-    device: torch.device = torch.device("cpu"),
 ) -> VisionDataset:
     """_summary_
 
@@ -72,8 +72,6 @@ def load_dataset(
         _description_, by default True
     outdir : pathlib.Path, optional
         _description_, by default "../data/datasets/"
-    device : torch.device, optional
-        _description_, by default torch.device("cpu")
 
     Returns
     -------
@@ -142,7 +140,10 @@ def split_dataset(
 
 
 def create_dataloader(
-    dataset: Dataset, indices: Optional[torch.Tensor] = None, batch_size: int = 16
+    dataset: Dataset,
+    indices: Optional[torch.Tensor] = None,
+    batch_size: int = 16,
+    device: torch.device = torch.device("cpu"),
 ) -> DataLoader:
     """_summary_
 
@@ -163,4 +164,10 @@ def create_dataloader(
     assert batch_size <= len(indices)
     if indices is not None:
         dataset = Subset(dataset, indices)
-    return DataLoader(dataset, batch_size=batch_size)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        collate_fn=lambda items: tuple(
+            item.to(device) for item in default_collate(items)
+        ),
+    )
