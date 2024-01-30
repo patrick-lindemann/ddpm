@@ -7,10 +7,10 @@ import uuid
 import torch
 from tqdm import tqdm
 
-from src.diffuser import Diffuser
-from src.model import DenoisingUNet2DModel
+from src.diffuser import GaussianDiffuser
+from src.model import DenoisingUNet2D
 from src.paths import OUT_DIR
-from src.utils import save_image
+from src.image import save_image
 
 
 def get_args() -> argparse.Namespace:
@@ -61,37 +61,6 @@ def get_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-@torch.no_grad()
-def sample(self, n: int = 1, at_steps=[0]) -> torch.Tensor:
-    # Generate and save the images
-    for i in tqdm(range(n)):
-        for step in reversed(tqdm(range(0, self.time_steps), leave=False)):
-            noise = torch.randn(
-                (n, 3, self.sample_size, self.sample_size), device=self.device
-            )
-            t = torch.full((n,), step, dtype=torch.long, device=self.device)
-            x_t = self.model(noise, t).sample
-            x_t_minus_one = 1
-
-            image = diffuser.sample(noise, t, prediction)
-            image = torch.clamp(image, -1.0, 1.0)
-        save_image(
-            args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
-        )
-
-    # Calculate x_(t-1)
-    result = (1 / self._alphas_sqrt[t]) * (
-        x_t - ((self._betas[t] * prediction) / self._one_minus_alpha_hats_sqrt[t])
-    )
-    if t == 0:
-        # Timestep is 0, return the result as is
-        return result
-    # Add random noise to the result
-    noise = torch.randn_like(x_t, device=self.device)
-    result += self._betas_sqrt[t] * noise
-    return result
-
-
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
@@ -117,14 +86,14 @@ if __name__ == "__main__":
 
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
-    model = DenoisingUNet2DModel.load(run_dir).to(device)
-    diffuser = Diffuser.load(run_dir).to(device)
+    model = DenoisingUNet2D.load(run_dir).to(device)
+    diffuser = GaussianDiffuser.load(run_dir).to(device)
 
     # Generate and save the images
     logging.info(f"Generating {num_images} images to dir {out_dir}.")
     logging.debug(f"Using {num_batches} batches with size {batch_size}.")
     for _ in tqdm(range(num_batches)):
-        images: torch.Tensor = sample(batch_size)
+        images: torch.Tensor = diffuser.sample(model, batch_size)
         for image in images:
             image_path = out_dir / f"{uuid.uuid4()}.png"
             save_image(image, image_path)

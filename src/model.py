@@ -24,7 +24,7 @@ WEIGHTS_FILE_NAME = "weights.pt"
 """Classes"""
 
 
-class ModelConfig(TypedDict):
+class DenoisingUNet2DConfig(TypedDict):
     image_size: int
     down_blocks_types: List[DownBlockType]
     up_blocks_types: List[UpBlockType]
@@ -33,13 +33,13 @@ class ModelConfig(TypedDict):
     dropout_rate: float
 
 
-class DenoisingUNet2DModel(UNet2DModel):
+class DenoisingUNet2D(UNet2DModel):
     """__summary__"""
 
-    _config: ModelConfig
+    _config: DenoisingUNet2DConfig
 
     @classmethod
-    def load(cls, dir_path: pathlib.Path) -> "DenoisingUNet2DModel":
+    def load(cls, dir_path: pathlib.Path) -> "DenoisingUNet2D":
         config_path = dir_path / CONFIG_FILE_NAME
         assert config_path.exists()
         weights_path = dir_path / WEIGHTS_FILE_NAME
@@ -81,7 +81,7 @@ class DenoisingUNet2DModel(UNet2DModel):
             time_embedding_type=time_embedding_type,
             dropout=dropout_rate,
         )
-        self._config: ModelConfig = {
+        self._config: DenoisingUNet2DConfig = {
             "image_size": image_size,
             "down_blocks_types": down_block_types,
             "up_blocks_types": up_block_types,

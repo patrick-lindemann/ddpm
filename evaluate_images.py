@@ -4,8 +4,8 @@ import pathlib
 
 import torch
 
-from src.inception import calculate_inception_score
-from src.utils import load_images
+from src.image import is_image_path, load_image
+from src.inception import INCEPTION_IMAGE_SIZE, calculate_inception_score
 
 
 def get_args() -> argparse.Namespace:
@@ -37,13 +37,23 @@ if __name__ == "__main__":
 
     # Validate the arguments
     assert image_dir.exists()
+    assert image_dir.is_dir()
+    for file_path in image_dir.iterdir():
+        assert is_image_path(
+            file_path
+        ), f"The folder {image_dir} must only contain images."
 
     # Load the images
-    logging.info(f"Loading images from {image_dir}.")
-    images = load_images(image_dir).to(device)
-    logging.info(f"Loaded {len(images)} images.")
+    N = len(list(image_dir.iterdir()))
+    logging.info(f"Loading {N} images from {image_dir}.")
+    images = torch.zeros((N, 3, INCEPTION_IMAGE_SIZE, INCEPTION_IMAGE_SIZE))
+    for i, file in enumerate(image_dir.iterdir()):
+        image = load_image(file, resize_to=INCEPTION_IMAGE_SIZE)
+        images[i] = image
 
     # Calculate the inception scores
-    logging.info("Calculating inception score.")
+    logging.info(f"Calculating inception score and writing it to {image_dir}.")
     score, _ = calculate_inception_score(images, batch_size=10, device=device)
+    with open(image_dir / "inception_score.txt", "w") as f:
+        f.write(f"{score:.4f}")
     logging.info(f"Inception score: {score:.4f}")

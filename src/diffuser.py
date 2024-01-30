@@ -1,9 +1,10 @@
 import json
 import pathlib
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 
+from .model import DenoisingUNet2D
 from .schedule import Schedule, get_schedule
 
 """Constants"""
@@ -15,7 +16,7 @@ CONFIG_FILE_NAME = "diffuser.config.json"
 """Classes"""
 
 
-class Diffuser:
+class GaussianDiffuser:
     """_summary_"""
 
     time_steps: int
@@ -31,7 +32,7 @@ class Diffuser:
     _one_minus_alpha_hats_sqrt: torch.Tensor
 
     @classmethod
-    def load(cls, dir_path: pathlib.Path) -> "Diffuser":
+    def load(cls, dir_path: pathlib.Path) -> "GaussianDiffuser":
         config_path = dir_path / CONFIG_FILE_NAME
         assert config_path.exists()
         with open(config_path, "r") as file:
@@ -40,16 +41,10 @@ class Diffuser:
         return cls(config["time_steps"], schedule)
 
     @torch.no_grad()
-    def __init__(
-        self,
-        time_steps: int,
-        schedule: Schedule,
-        device: torch.device = torch.device("cpu"),
-    ) -> None:
+    def __init__(self, time_steps: int, schedule: Schedule) -> None:
         self.time_steps = time_steps
         self.schedule = schedule
-        self.device = device
-        self._betas = schedule(torch.linspace(0.0, 1.0, time_steps)).to(self.device)
+        self._betas = schedule(torch.linspace(0.0, 1.0, time_steps))
         self._betas_sqrt = torch.sqrt(self._betas)
         self._alphas = 1.0 - self._betas
         self._alphas_sqrt = torch.sqrt(self._alphas)
@@ -126,7 +121,38 @@ class Diffuser:
         reconstructed_images = torch.clamp(reconstructed_images, -1.0, 1.0)
         return reconstructed_images
 
-    def to(self, device: torch.device) -> None:
+    @torch.no_grad()
+    def sample(self, model: DenoisingUNet2D, n: int = 1) -> torch.Tensor:
+        # Generate and save the images
+        for i in tqdm(range(n)):
+            for step in reversed(tqdm(range(0, self.time_steps), leave=False)):
+                noise = torch.randn(
+                    (n, 3, self.sample_size, self.sample_size), device=self.device
+                )
+                t = torch.full((n,), step, dtype=torch.long, device=self.device)
+                x_t = self.model(noise, t).sample
+                x_t_minus_one = 1
+
+                image = diffuser.sample(noise, t, prediction)
+                image = torch.clamp(image, -1.0, 1.0)
+            save_image(
+                args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
+            )
+
+        # Calculate x_(t-1)
+        result = (1 / self._alphas_sqrt[t]) * (
+            x_t - ((self._betas[t] * prediction) / self._one_minus_alpha_hats_sqrt[t])
+        )
+        if t == 0:
+            # Timestep is 0, return the result as is
+            return result
+        # Add random noise to the result
+        noise = torch.randn_like(x_t, device=self.device)
+        result += self._betas_sqrt[t] * noise
+        return result
+
+    @torch.no_grad()
+    def to(self, device: torch.device) -> "GaussianDiffuser":
         self._device = device
         self._betas = self._betas.to(device)
         self._betas_sqrt = self._betas_sqrt.to(device)
@@ -135,6 +161,7 @@ class Diffuser:
         self._alpha_hats = self._alpha_hats.to(device)
         self._alpha_hats_sqrt = self._alpha_hats_sqrt.to(device)
         self._one_minus_alpha_hats_sqrt = self._one_minus_alpha_hats_sqrt.to(device)
+        return self
 
     def save(self, dir_path: pathlib.Path) -> None:
         config_path = dir_path / CONFIG_FILE_NAME

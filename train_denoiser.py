@@ -4,22 +4,17 @@ import logging
 import os
 import pathlib
 import time
+from typing import Dict
 
 import torch
 import torch.utils.data
 from tqdm import tqdm
 
+from src.data import create_dataloaders, load_dataset
 from src.diffuser import GaussianDiffuser
-from src.model import DiffusionModel
+from src.model import DenoisingUNet2D
 from src.paths import OUT_DIR
-from src.schedule import (
-    CosineScheduler,
-    LinearScheduler,
-    PolynomialScheduler,
-    Scheduler,
-    SigmoidScheduler,
-)
-from src.utils import load_image
+from src.schedule import get_schedule
 
 
 def get_args() -> argparse.Namespace:
@@ -78,6 +73,18 @@ def get_args() -> argparse.Namespace:
         default=300,
     )
     parser.add_argument(
+        "--validate-at",
+        type=int,
+        help="Validate the model with the test set every nth epoch.",
+        default=None,
+    )
+    parser.add_argument(
+        "--sample-at",
+        type=int,
+        help="Sample every nth epoch.",
+        default=None,
+    )
+    parser.add_argument(
         "--train-size",
         type=float,
         help="The size of the training set. Can be a percentage in [0, 1] or an integer specifying the number of training samples.",
@@ -131,17 +138,6 @@ def get_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-"""Functions"""
-
-
-def one_epoch():
-    pass
-
-
-def train():
-    pass
-
-
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
@@ -158,6 +154,8 @@ if __name__ == "__main__":
     schedule_end: int = args.schedule_end
     schedule_tau: float | None = args.schedule_tau
     epochs: int = args.epochs
+    validate_at: int | None = args.validate_at
+    sample_at: int | None = args.sample_at
     train_size: float = args.train_size
     test_size: float = args.test_size
     batch_size: int = args.batch_size
@@ -175,153 +173,79 @@ if __name__ == "__main__":
     if not out_dir.exists():
         os.makedirs(out_dir)
 
-    dataset = get_dataset(dataset_name)
-    train_loader, validation_loader = create_dataloader(dataset, batch_size=batch_size)
-
-    # Prepare the logger
-    # Prepare the diffuser
+    # Prepare the dataset, model and training
+    dataset = load_dataset(dataset_name, resize_to=image_size)
+    train_loader, test_loader = create_dataloaders(
+        dataset,
+        train_size=train_size,
+        test_size=test_size,
+        batch_size=batch_size,
+        shuffle=True,
+        seed=seed,
+        device=device,
+    )
     schedule = get_schedule(
         schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
-    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
+    model = DenoisingUNet2D(image_size, dropout_rate=dropout_rate).to(device)
+    diffuser = GaussianDiffuser(time_steps, schedule).to(device)
+    loss_func = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.99)
 
     # Prepare the output directory
-
-    # Load the data
-    logging.info("Loading dataset.")
-    dataset = load_dataset(args.dataset)
-    train_indices, test_indices = split_dataset(
-        dataset, train_size=args.train_split_size
-    )
-    train_loader = create_dataloader(
-        dataset, train_indices, batch_size=args.batch_size, device=device
-    )
-
-    # Prepare the model
-    model = DiffusionModel(sample_size=args.sample_size, dropout_rate=args.dropout_rate)
-    model.to(device)
-    loss_func = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=args.learning_rate_stepsize, gamma=args.learning_rate_gamma
-    )
-
-    sample_in_between = True
-
-    for epoch in tqdm(range(epochs)):
-        for step, batch in enumerate(tqdm(train_loader, leave=False)):
-            pass
-
-    setup_logging(args.run_name)
-    device = args.device
-    dataloader = get_data(args)
-    model = UNet().to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    mse = nn.MSELoss()
-    diffusion = Diffusion(img_size=args.image_size, device=device)
-    logger = SummaryWriter(os.path.join("runs", args.run_name))
-    l = len(dataloader)
-
-    for epoch in range(args.epochs):
-        logging.info(f"Starting epoch {epoch}:")
-        pbar = tqdm(dataloader)
-        for i, (images, _) in enumerate(pbar):
-            images = images.to(device)
-            t = diffusion.sample_timesteps(images.shape[0]).to(device)
-            x_t, noise = diffusion.noise_images(images, t)
-            predicted_noise = model(x_t, t)
-            loss = mse(noise, predicted_noise)
-
+    logging.info(f"Starting training for {epochs} epochs with batch size {batch_size}.")
+    train_losses: Dict[int, float] = {}
+    test_losses: Dict[int, float] = {}
+    learning_rates: Dict[int, float] = {}
+    for epoch in tqdm(range(args.epochs, "epochs")):
+        train_loss = 0.0
+        for step, batch in enumerate(tqdm(train_loader, "train", leave=False)):
             optimizer.zero_grad()
+            images = batch[0]
+            t = torch.randint(0, time_steps, (batch_size,), device=device)
+            noised_images, noises = diffuser.forward(images, t)
+            predicted_noises = model(noised_images.float(), t).sample
+            loss = loss_func(predicted_noises, noises)
+            train_loss += loss.item()
             loss.backward()
             optimizer.step()
-
-            pbar.set_postfix(MSE=loss.item())
-            logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
-
-        sampled_images = diffusion.sample(model, n=images.shape[0])
-        save_images(
-            sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg")
-        )
-        torch.save(
-            model.state_dict(), os.path.join("models", args.run_name, f"ckpt.pt")
-        )
-
-    # Train the model
-    logging.info(
-        f"Starting training for {args.epochs} epochs with batch size {args.batch_size}."
-    )
-    epoch_losses = torch.zeros(args.epochs, dtype=torch.float32, device=device)
-    for epoch in tqdm(range(args.epochs)):
-        epoch_loss_sum = 0
-        for step, batch in enumerate(tqdm(train_loader, leave=False)):
-            optimizer.zero_grad()
-            image_batch = batch[0]
-            # Select a random time step for each image in the batch and apply the
-            # noise for that time step
-            t = torch.randint(0, args.schedule_steps, (args.batch_size,), device=device)
-            noised_image_batch, noise_batch = diffuser.forward(image_batch, t)
-            # Predict the noise for the noised images and calculate the loss
-            predicted_noise_batch = model(noised_image_batch.float(), t).sample
-            loss = loss_func(predicted_noise_batch, noise_batch)
-            epoch_loss_sum += loss.item()
-            # Backpropagate the loss and update the model parameters
-            loss.backward()
-            optimizer.step()
-        epoch_loss = epoch_loss_sum / len(dataset)
-        epoch_losses[epoch] = epoch_loss
-        # Update the learning rate
+        train_losses[epoch] = train_loss / len(train_loader)
+        learning_rates[epoch] = lr_scheduler.get_lr()
         lr_scheduler.step()
-        # TODO: Save the model if the loss is the best so far
+        if validate_at is not None and epoch % validate_at == 0:
+            test_loss = 0.0
+            with torch.no_grad():
+                for step, batch in enumerate(tqdm(test_loader, "test", leave=False)):
+                    images = batch[0]
+                    t = torch.randint(0, time_steps, (batch_size,), device=device)
+                    noised_images, noises = diffuser.forward(images, t)
+                    predicted_noises = model(noised_images.float(), t).sample
+                    loss = loss_func(predicted_noises, noises)
+                    test_loss += loss.item()
+            test_losses[epoch] = test_loss / len(test_loader)
+        if sample_at is not None and epoch % sample_at == 0:
+            for step, batch
+
+    # Export the model and diffuser
+    logging.info(f"Saving model and diffuser to {out_dir}.")
+    model.save(out_dir)
+    diffuser.save(out_dir)
 
     # Export the metadata
     metadata = {
-        "training": {
-            "epochs": args.epochs,
-            "batch_size": args.batch_size,
-            "learning_rate": args.learning_rate,
-            "learning_rate_stepsize": args.learning_rate_stepsize,
-            "learning_rate_gamma": args.learning_rate_gamma,
-            "losses": epoch_losses.tolist(),
-            "final_loss": epoch_losses[-1].item(),
-        },
-        "schedule": {
-            "type": scheduler.name,
-            "start": scheduler.start,
-            "end": scheduler.end,
-            "tau": scheduler.tau if scheduler.name != "linear" else None,
-            "steps": args.schedule_steps,
-        },
-        "dataset": {
-            "name": args.dataset,
-            "size": len(dataset),
-            "batch_size": args.batch_size,
-            "split": {
-                "train": {
-                    "size": len(train_indices),
-                    "indices": train_indices,
-                },
-                "test": {
-                    "size": len(test_indices),
-                    "indices": test_indices,
-                },
-            },
-        },
+        "name": run_name,
+        "dataset": dataset_name,
+        "dataset_size": len(dataset),
+        "train_size": int(train_size * len(dataset)),
+        "test_size": int(test_size * len(dataset)),
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "learning_rates": learning_rates,
+        "train_losses": train_losses,
+        "test_losses": test_losses,
     }
-    metadata_path = args.outdir / "metadata.json"
+    metadata_path = args.outdir / "run.json"
     logging.info(f"Saving metadata to {metadata_path}.")
     with open(metadata_path, "w") as file:
         json.dump(metadata, file)
-
-    # Plot the losses
-    losses_path = args.outdir / "train-loss.svg"
-    logging.info(f"Saving loss plot to {losses_path}.")
-    plot_loss(
-        losses=epoch_losses.cpu(),
-        file_path=losses_path,
-    )
-
-    # Export the model
-    model_path = args.outdir / "model.pt"
-    logging.info(f"Saving model to {model_path}.")
-    torch.save(model.state_dict(), model_path)

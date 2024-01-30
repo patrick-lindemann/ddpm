@@ -6,10 +6,11 @@ import pathlib
 import torch
 from tqdm import tqdm
 
-from src.diffuser import Diffuser
+from src.diffuser import GaussianDiffuser
+from src.image import load_image, save_image
 from src.paths import OUT_DIR
+from src.plot import plot_schedule
 from src.schedule import get_schedule
-from src.utils import plot_schedule, save_image
 
 
 def get_args() -> argparse.Namespace:
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     schedule = get_schedule(
         schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
-    diffuser = Diffuser(num_steps=time_steps, schedule=schedule, device=device)
+    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
 
     # Load the image
     logging.info(f'Loading image from "{image_path}"')

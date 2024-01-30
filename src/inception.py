@@ -6,6 +6,16 @@ from torchvision import transforms
 from torchvision.models.inception import Inception_V3_Weights, inception_v3
 from tqdm import tqdm
 
+"""Constants"""
+
+
+INCEPTION_IMAGE_SIZE = 299
+"""
+The image size for the InceptionV3 model. The images are resized to this size before
+being passed to the model.
+"""
+
+
 """Functions"""
 
 
@@ -22,7 +32,7 @@ def calculate_inception_score(
     Parameters
     ----------
     x : torch.Tensor
-        The dataset containing N images with dimension (C, H, W) which are normalized
+        The dataset containing N images with dimension (C, 299, 299) which are normalized
         in the range [-1, 1]
     batch_size : int, optional
         The image batch size for InceptionV3, by default 32
@@ -38,12 +48,8 @@ def calculate_inception_score(
     """
     N = len(x)
     batch_size = batch_size or N
-    # Inception v3 expects a images of shape (N, 3, 299, 299)
-    # Resize the image to (299, 299)
-    resize_transform = transforms.Resize((299, 299), antialias=True)
-    x_resized = resize_transform(x)
     # Prepare the data loader
-    data_loader = DataLoader(x_resized, batch_size=batch_size)
+    data_loader = DataLoader(x, batch_size=batch_size)
     # Load the inception v3 model
     inception = inception_v3(
         weights=Inception_V3_Weights.IMAGENET1K_V1, transform_input=False

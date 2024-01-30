@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy
 import torch

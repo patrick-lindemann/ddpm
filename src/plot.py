@@ -1,86 +1,15 @@
 import pathlib
 from typing import Callable, Optional
 
-import numpy
-import torch
-from torchvision import transforms
-
-from .transform import tensor_to_image
-
-# For resizing
-image_transformation = transforms.Compose(
-    [image_to_tensor, transforms.Resize((image_size, image_size), antialias=True)]
-)
-
-
-def load_images(
-    file_path: pathlib.Path,
-    transformation: Callable = image_to_tensor,
-) -> torch.Tensor:
-    """_summary_
-
-    Parameters
-    ----------
-    file_path : pathlib.Path
-        The path to the image. If it is a directory, all images in the directory are loaded.
-    transformation : Callable, optional
-        The transformation that is applied to the images, by default image_to_tensor()
-    device : torch.device, optional
-        The device, by default torch.device("cpu")
-
-    Returns
-    -------
-    torch.Tensor
-        The tensor containing the images.
-    """
-    if file_path.is_dir():
-        tensors: List[torch.Tensor] = []
-        for file in file_path.iterdir():
-            image = Image.open(file).convert("RGB")
-            tensor = transformation(image).to(device)
-            tensors.append(tensor)
-        return torch.stack(tensors)
-    else:
-        image = Image.open(file_path)
-        return transformation(image).to(device)
-
-
-def save_image(
-    file_path: pathlib.Path,
-    image: torch.Tensor,
-    transform: Optional[Callable] = tensor_to_image,
-) -> None:
-    """_summary_
-
-    Parameters
-    ----------
-    file_path : pathlib.Path
-        _description_
-    data : torch.Tensor
-        _description_
-    transform : Optional[Callable], optional
-        _description_, by default tensor_to_image
-    """
-    image = image.to("cpu")
-    transform = transforms.Compose([transform, transforms.ToPILImage()])
-    image_transformed = transform(image)
-    image_transformed.save(file_path)
-
-
-import pathlib
-from typing import Callable, Optional
-
 import matplotlib.pyplot as plt
 import torch
 
-from src.schedule import Scheduler
-
-from .transform import tensor_to_image
+from .image import tensor_to_image
+from .schedule import Schedule
 
 
 def plot_image(
     image: torch.Tensor,
-    transform: Callable = tensor_to_image,
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
     """_summary_
@@ -89,19 +18,17 @@ def plot_image(
     ----------
     image : torch.Tensor
         _description_
-    transform : Callable, optional
-        _description_, by default reverse_transform_image
     file_path : Optional[pathlib.Path], optional
         _description_, by default None
     """
     if file_path is not None:
-        plt.imsave(file_path, transform(image))
+        plt.imsave(file_path, tensor_to_image(image))
     else:
-        plt.imshow(transform(image))
+        plt.imshow(tensor_to_image(image))
 
 
 def plot_schedule(
-    scheduler: Scheduler,
+    schedule: Schedule,
     time_steps: int = 1000,
     file_path: Optional[pathlib.Path] = None,
 ):
@@ -116,15 +43,17 @@ def plot_schedule(
     file_path : Optional[pathlib.Path], optional
         _description_, by default None
     """
-    title = f"{scheduler.name.capitalize()} Scheduler\n s={scheduler.start}, e={scheduler.end}"
-    if scheduler.name != "linear":
-        title += f", $\\tau$={scheduler.tau}"
+    title = (
+        f"{schedule.type.capitalize()} Scheduler\n s={schedule.start}, e={schedule.end}"
+    )
+    if schedule.type != "linear":
+        title += f", $\\tau$={schedule.tau}"
     plt.title(title)
     plt.xlabel("$t$")
     plt.ylabel("$\\gamma(t)$")
     plt.gca().set_aspect("equal", adjustable="box")
     t = torch.linspace(0, 1, time_steps)
-    plt.plot(t, scheduler(t))
+    plt.plot(t, schedule(t))
     if file_path is not None:
         plt.savefig(file_path, bbox_inches="tight", pad_inches=0)
     else:
@@ -133,7 +62,7 @@ def plot_schedule(
 
 def plot_loss(
     losses: torch.Tensor,
-    title: str = "Training Loss Over Epochs",
+    title: str,
     xlabel: str = "Epoch",
     ylabel: str = "MSE Loss",
     file_path: Optional[pathlib.Path] = None,
@@ -145,7 +74,7 @@ def plot_loss(
     losses : torch.Tensor
         _description_
     title : str, optional
-        _description_, by default "Training Loss Over Epochs"
+        _description_
     xlabel : str, optional
         _description_, by default "Epoch"
     ylabel : str, optional
