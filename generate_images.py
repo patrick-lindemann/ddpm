@@ -7,7 +7,7 @@ import uuid
 import torch
 from tqdm import tqdm
 
-from src.ddpm import DDPM
+from src.diffuser import Diffuser
 from src.model import DenoisingUNet2DModel
 from src.paths import OUT_DIR
 from src.utils import save_image
@@ -16,9 +16,15 @@ from src.utils import save_image
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "run_dir",
+        "run_dir"
         type=str,
         help="The path to the model to test.\nThe model directory needs to contain a model.pt and a metadata.json file.",
+    )
+    parser.add_argument(
+        "--model-path",
+        type=pathlib.Path,
+        help='The path to the model directory, which contains the files "config.json" and "weights.pt".',
+        default=None,
     )
     parser.add_argument(
         "num_images",
@@ -32,10 +38,10 @@ def get_args() -> argparse.Namespace:
         default=1,
     )
     parser.add_argument(
-        "--device",
-        type=str.lower,
-        help='The device to use.\nAllowed values: "CPU", "Cuda".',
-        default="cuda" if torch.cuda.is_available() else "cpu",
+        "--seed",
+        type=int,
+        help="The random seed to use.",
+        default=None,
     )
     parser.add_argument(
         "--out-dir",
@@ -44,9 +50,46 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
+        "--device",
+        type=str.lower,
+        help='The device to use.\nAllowed values: "CPU", "Cuda".',
+        default="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."
     )
     return parser.parse_args()
+
+
+@torch.no_grad()
+def sample(self, n: int = 1, at_steps=[0]) -> torch.Tensor:
+    # Generate and save the images
+    for i in tqdm(range(n)):
+        for step in reversed(tqdm(range(0, self.time_steps), leave=False)):
+            noise = torch.randn(
+                (n, 3, self.sample_size, self.sample_size), device=self.device
+            )
+            t = torch.full((n,), step, dtype=torch.long, device=self.device)
+            x_t = self.model(noise, t).sample
+            x_t_minus_one = 1
+
+            image = diffuser.sample(noise, t, prediction)
+            image = torch.clamp(image, -1.0, 1.0)
+        save_image(
+            args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
+        )
+
+    # Calculate x_(t-1)
+    result = (1 / self._alphas_sqrt[t]) * (
+        x_t - ((self._betas[t] * prediction) / self._one_minus_alpha_hats_sqrt[t])
+    )
+    if t == 0:
+        # Timestep is 0, return the result as is
+        return result
+    # Add random noise to the result
+    noise = torch.randn_like(x_t, device=self.device)
+    result += self._betas_sqrt[t] * noise
+    return result
 
 
 if __name__ == "__main__":
@@ -57,10 +100,13 @@ if __name__ == "__main__":
     num_batches = num_images // batch_size
     run_dir: pathlib.Path = args.run_dir
     run_name = run_dir.name
+    seed: int = args.seed
     out_dir = args.outdir if args.outdir is not None else OUT_DIR / "images" / run_name
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    if seed is not None:
+        torch.manual_seed(seed)
 
     # Validate the arguments
     assert run_dir.exists()
@@ -71,16 +117,14 @@ if __name__ == "__main__":
 
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
-    model = DenoisingUNet2DModel.load(
-        config_path=run_dir / "model.json", weights_path=run_dir / "weights.pt"
-    ).to(device)
-    ddpm = DDPM(model, device=device)
+    model = DenoisingUNet2DModel.load(run_dir).to(device)
+    diffuser = Diffuser.load(run_dir).to(device)
 
     # Generate and save the images
     logging.info(f"Generating {num_images} images to dir {out_dir}.")
     logging.debug(f"Using {num_batches} batches with size {batch_size}.")
     for _ in tqdm(range(num_batches)):
-        images: torch.Tensor = ddpm.sample(batch_size)
+        images: torch.Tensor = sample(batch_size)
         for image in images:
             image_path = out_dir / f"{uuid.uuid4()}.png"
             save_image(image, image_path)

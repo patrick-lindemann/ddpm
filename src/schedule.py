@@ -16,9 +16,18 @@ ScheduleType = Literal["linear", "cosine", "polynomial", "sigmoid"]
 class Schedule(ABC):
     """_summary_"""
 
+    start: float
+    end: float
+    tau: float | None
+
+    def __init__(self, start: float, end: float, tau: float | None) -> None:
+        self.start = start
+        self.end = end
+        self.tau = tau
+
     @property
     @abstractmethod
-    def name(self) -> str:
+    def type(self) -> str:
         raise NotImplementedError()
 
     @abstractmethod
@@ -46,19 +55,15 @@ class Schedule(ABC):
 class LinearSchedule(Schedule):
     """__summary__"""
 
-    start: float
-    end: float
-
     def __init__(
         self,
         start: float = 0.0,
         end: float = 1.0,
     ) -> None:
-        self.start = start
-        self.end = end
+        super().__init__(start, end, None)
 
     @property
-    def name(self) -> str:
+    def type(self) -> str:
         return "linear"
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
@@ -69,22 +74,16 @@ class LinearSchedule(Schedule):
 class CosineSchedule(Schedule):
     """_summary_"""
 
-    start: float
-    end: float
-    tau: float
-
     def __init__(
         self,
         start: float = 0.0,
         end: float = 1.0,
         tau: float = 1.0,
     ) -> None:
-        self.start = start
-        self.end = end
-        self.tau = tau
+        super().__init__(start, end, tau)
 
     @property
-    def name(self) -> str:
+    def type(self) -> str:
         return "cosine"
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
@@ -100,16 +99,11 @@ class CosineSchedule(Schedule):
 class PolynomialSchedule(Schedule):
     """__summary__"""
 
-    start: float
-    end: float
-
     def __init__(self, start: float = 0.0, end: float = 1.0, tau: float = 2.0) -> None:
-        self.start = start
-        self.end = end
-        self.tau = tau
+        super().__init__(start, end, tau)
 
     @property
-    def name(self) -> str:
+    def type(self) -> str:
         return "polynomial"
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
@@ -125,22 +119,16 @@ class PolynomialSchedule(Schedule):
 class SigmoidSchedule(Schedule):
     """_summary_"""
 
-    start: float
-    end: float
-    tau: float
-
     def __init__(
         self,
         start: float = -3.0,
         end: float = 3.0,
         tau: float = 1.0,
     ) -> None:
-        self.start = start
-        self.end = end
-        self.tau = tau
+        super().__init__(start, end, tau)
 
     @property
-    def name(self) -> str:
+    def type(self) -> str:
         return "sigmoid"
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
@@ -156,12 +144,12 @@ class SigmoidSchedule(Schedule):
 """Functions"""
 
 
-def get_schedule(name: str, **kwargs) -> Schedule:
+def get_schedule(type: ScheduleType, **kwargs) -> Schedule:
     """_summary_
 
     Parameters
     ----------
-    name : str
+    type : str
         _description_
 
     Returns
@@ -174,15 +162,15 @@ def get_schedule(name: str, **kwargs) -> Schedule:
     ValueError
         _description_
     """
-    if "tau" in kwargs and (kwargs["tau"] is None or name == "linear"):
+    if "tau" in kwargs and (kwargs["tau"] is None or type == "linear"):
         del kwargs["tau"]
-    if name == "linear":
+    if type == "linear":
         return LinearSchedule(**kwargs)
-    elif name == "polynomial":
+    elif type == "polynomial":
         return PolynomialSchedule(**kwargs)
-    elif name == "cosine":
+    elif type == "cosine":
         return CosineSchedule(**kwargs)
-    elif name == "sigmoid":
+    elif type == "sigmoid":
         return SigmoidSchedule(**kwargs)
     else:
-        raise ValueError(f"Invalid schedule name: {name}")
+        raise ValueError(f"Invalid schedule name: {type}")

@@ -9,7 +9,7 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 
-from src.ddpm import GaussianDiffuser
+from src.diffuser import GaussianDiffuser
 from src.model import DiffusionModel
 from src.paths import OUT_DIR
 from src.schedule import (
@@ -72,22 +72,28 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="The batch size for the data loader.",
-        default=16,
-    )
-    parser.add_argument(
         "--epochs",
         type=int,
         help="The number of epochs to train for.",
         default=300,
     )
     parser.add_argument(
-        "--train-split-size",
+        "--train-size",
         type=float,
-        help="The size of the training set.",
+        help="The size of the training set. Can be a percentage in [0, 1] or an integer specifying the number of training samples.",
         default=0.8,
+    )
+    parser.add_argument(
+        "--test-size",
+        type=float,
+        help="The size of the test set. Can be a percentage in [0, 1] or an integer specifying the number of test samples.",
+        default=0.2,
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for the data loader.",
+        default=16,
     )
     parser.add_argument(
         "--learning-rate",
@@ -96,25 +102,19 @@ def get_args() -> argparse.Namespace:
         default=1e-3,
     )
     parser.add_argument(
-        "--learning-rate-stepsize",
-        type=int,
-        help="The step size for the learning rate scheduler.",
-        default=5,
-    )
-    parser.add_argument(
-        "--learning-rate-gamma",
-        type=float,
-        help="The gamma value for the learning rate scheduler.",
-        default=0.8,
-    )
-    parser.add_argument(
         "--dropout-rate",
         type=float,
         help="The dropout rate for the model.",
         default=0.1,
     )
     parser.add_argument(
-        "--outdir",
+        "--seed",
+        type=int,
+        help="The random seed to use.",
+        default=None,
+    )
+    parser.add_argument(
+        "--out-dir",
         type=pathlib.Path,
         help="The directory to save the results to.",
         default=OUT_DIR / "train",
@@ -152,55 +152,38 @@ if __name__ == "__main__":
         else f"{int(time.time())}_{args.dataset}_{args.schedule}"
     )
     image_size: int = args.image_size
-    epochs: int = args.epochs
-    batch_size: int = args.batch_size
-
     time_steps: int = args.time_steps
     schedule_name: str = args.schedule
     schedule_start: int = args.schedule_start
     schedule_end: int = args.schedule_end
-    schedule_tau: float = args.schedule_tau
-    image_size: int = args.image_size
+    schedule_tau: float | None = args.schedule_tau
+    epochs: int = args.epochs
+    train_size: float = args.train_size
+    test_size: float = args.test_size
+    batch_size: int = args.batch_size
+    learning_rate: float = args.learning_rate
+    dropout_rate: float = args.dropout_rate
+    seed: int = args.seed
     out_dir: pathlib.Path = args.out_dir / run_name
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    if seed is not None:
+        torch.manual_seed(seed)
 
     # Validate the arguments
     if not out_dir.exists():
         os.makedirs(out_dir)
 
+    dataset = get_dataset(dataset_name)
+    train_loader, validation_loader = create_dataloader(dataset, batch_size=batch_size)
+
     # Prepare the logger
-
-    # Prepare the scheduler
-    scheduler: Scheduler
-    if args.schedule == "linear":
-        scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
-    elif args.schedule == "polynomial":
-        scheduler = PolynomialScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 2.0,
-        )
-    elif args.schedule == "cosine":
-        scheduler = CosineScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    elif args.schedule == "sigmoid":
-        scheduler = SigmoidScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    else:
-        raise ValueError(f"Unknown scheduler: {args.scheduler}")
-
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(
-        num_steps=args.schedule_steps, scheduler=scheduler, device=device
+    schedule = get_schedule(
+        schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
+    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
 
     # Prepare the output directory
 
@@ -222,6 +205,47 @@ if __name__ == "__main__":
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer, step_size=args.learning_rate_stepsize, gamma=args.learning_rate_gamma
     )
+
+    sample_in_between = True
+
+    for epoch in tqdm(range(epochs)):
+        for step, batch in enumerate(tqdm(train_loader, leave=False)):
+            pass
+
+    setup_logging(args.run_name)
+    device = args.device
+    dataloader = get_data(args)
+    model = UNet().to(device)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    mse = nn.MSELoss()
+    diffusion = Diffusion(img_size=args.image_size, device=device)
+    logger = SummaryWriter(os.path.join("runs", args.run_name))
+    l = len(dataloader)
+
+    for epoch in range(args.epochs):
+        logging.info(f"Starting epoch {epoch}:")
+        pbar = tqdm(dataloader)
+        for i, (images, _) in enumerate(pbar):
+            images = images.to(device)
+            t = diffusion.sample_timesteps(images.shape[0]).to(device)
+            x_t, noise = diffusion.noise_images(images, t)
+            predicted_noise = model(x_t, t)
+            loss = mse(noise, predicted_noise)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            pbar.set_postfix(MSE=loss.item())
+            logger.add_scalar("MSE", loss.item(), global_step=epoch * l + i)
+
+        sampled_images = diffusion.sample(model, n=images.shape[0])
+        save_images(
+            sampled_images, os.path.join("results", args.run_name, f"{epoch}.jpg")
+        )
+        torch.save(
+            model.state_dict(), os.path.join("models", args.run_name, f"ckpt.pt")
+        )
 
     # Train the model
     logging.info(
@@ -260,12 +284,6 @@ if __name__ == "__main__":
             "learning_rate_gamma": args.learning_rate_gamma,
             "losses": epoch_losses.tolist(),
             "final_loss": epoch_losses[-1].item(),
-        },
-        "model": {
-            "sample_size": args.sample_size,
-            "down_blocks": len(model.down_blocks),
-            "up_blocks": len(model.up_blocks),
-            "dropout_rate": args.dropout_rate,
         },
         "schedule": {
             "type": scheduler.name,

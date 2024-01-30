@@ -6,7 +6,7 @@ import pathlib
 import torch
 from tqdm import tqdm
 
-from src.ddpm import GaussianDiffuser
+from src.diffuser import Diffuser
 from src.paths import OUT_DIR
 from src.schedule import get_schedule
 from src.utils import plot_schedule, save_image
@@ -20,16 +20,22 @@ def get_args() -> argparse.Namespace:
         help="The path to the image to apply noise to.",
     )
     parser.add_argument(
-        "--schedule",
-        type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "sigmoid".',
-        default="linear",
+        "--image-size",
+        type=int,
+        help="The (quadratic) size to resize the image to.",
+        default=128,
     )
     parser.add_argument(
         "--time-steps",
         type=int,
         help="The number of time steps for the diffusion process.",
         default=10,
+    )
+    parser.add_argument(
+        "--schedule",
+        type=str.lower,
+        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "sigmoid".',
+        default="linear",
     )
     parser.add_argument(
         "--schedule-start",
@@ -48,12 +54,6 @@ def get_args() -> argparse.Namespace:
         type=float,
         help="The tau value for the schedule. Only applicable for polynomial, cosine and sigmoid schedules.",
         default=None,
-    )
-    parser.add_argument(
-        "--image-size",
-        type=int,
-        help="The (quadratic) size to scale the image to.",
-        default=128,
     )
     parser.add_argument(
         "--out-dir",
@@ -77,13 +77,13 @@ if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
     image_path: pathlib.Path = args.image_path
+    image_size: int = args.image_size
     time_steps: int = args.time_steps
     schedule_name: str = args.schedule
     schedule_start: int = args.schedule_start
     schedule_end: int = args.schedule_end
-    schedule_tau: float = args.schedule_tau
-    image_size: int = args.image_size
-    out_dir: pathlib.Path = args.out_dir
+    schedule_tau: float | None = args.schedule_tau
+    out_dir: pathlib.Path = args.out_dir / schedule_name
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -99,10 +99,10 @@ if __name__ == "__main__":
     schedule = get_schedule(
         schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
-    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
+    diffuser = Diffuser(num_steps=time_steps, schedule=schedule, device=device)
 
     # Load the image
-    logging.info(f'Loading image from "{args.image_path}"')
+    logging.info(f'Loading image from "{image_path}"')
     image = load_image(image_path, resize_to=image_size).to(device)
     image = image.reshape(shape=[1, *image.shape])
 
@@ -110,9 +110,7 @@ if __name__ == "__main__":
     logging.info(
         f"Applying noise to image within {time_steps} time steps with {schedule_name} schedule."
     )
-    noise_step_images = torch.zeros((args.schedule_steps, *image.squeeze().shape)).to(
-        device
-    )
+    noise_step_images = torch.zeros((time_steps, *image.squeeze().shape)).to(device)
     for t in tqdm(range(time_steps)):
         noised_image, _ = diffuser.forward(image, torch.tensor([t]))
         noise_step_images[t] = noised_image.squeeze()

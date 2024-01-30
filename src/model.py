@@ -14,6 +14,13 @@ UpBlockType = Literal["UpBlock2D", "AttnUpBlock2D"]
 TimeEmbeddingType = Literal["positional"]
 
 
+"""Constants"""
+
+
+CONFIG_FILE_NAME = "model.config.json"
+WEIGHTS_FILE_NAME = "weights.pt"
+
+
 """Classes"""
 
 
@@ -29,12 +36,14 @@ class ModelConfig(TypedDict):
 class DenoisingUNet2DModel(UNet2DModel):
     """__summary__"""
 
+    _config: ModelConfig
+
     @classmethod
-    def load(
-        cls,
-        config_path: pathlib.path,
-        weights_path: pathlib.Path,
-    ) -> "DenoisingUNet2DModel":
+    def load(cls, dir_path: pathlib.Path) -> "DenoisingUNet2DModel":
+        config_path = dir_path / CONFIG_FILE_NAME
+        assert config_path.exists()
+        weights_path = dir_path / WEIGHTS_FILE_NAME
+        assert weights_path.exists()
         with open(config_path, "r") as file:
             config = json.load(file)
         model = cls(**config)
@@ -72,6 +81,18 @@ class DenoisingUNet2DModel(UNet2DModel):
             time_embedding_type=time_embedding_type,
             dropout=dropout_rate,
         )
+        self._config: ModelConfig = {
+            "image_size": image_size,
+            "down_blocks_types": down_block_types,
+            "up_blocks_types": up_block_types,
+            "layers_per_block": layers_per_block,
+            "time_embedding_type": time_embedding_type,
+            "dropout_rate": dropout_rate,
+        }
 
-    def save(self, path: pathlib.Path) -> None:
-        torch.save(self.state_dict(), path)
+    def save(self, dir_path: pathlib.Path) -> None:
+        config_path = dir_path / CONFIG_FILE_NAME
+        weights_path = dir_path / WEIGHTS_FILE_NAME
+        with open(config_path, "w") as file:
+            json.dump(self._config, file)
+        torch.save(self.state_dict(), weights_path)

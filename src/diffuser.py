@@ -1,18 +1,25 @@
+import json
 import pathlib
 from typing import Tuple
 
 import torch
-from tqdm import tqdm
 
-from .schedule import LinearSchedule, Schedule
+from .schedule import Schedule, get_schedule
+
+"""Constants"""
 
 
-class DDPM:
+CONFIG_FILE_NAME = "diffuser.config.json"
+
+
+"""Classes"""
+
+
+class Diffuser:
     """_summary_"""
 
-    num_steps: int
+    time_steps: int
     schedule: Schedule
-    model: torch.nn.Module
     device: torch.device
 
     _betas: torch.Tensor
@@ -24,19 +31,25 @@ class DDPM:
     _one_minus_alpha_hats_sqrt: torch.Tensor
 
     @classmethod
-    def load(cls, config_path: pathlib.Path) -> "DDPM":
-        pass
+    def load(cls, dir_path: pathlib.Path) -> "Diffuser":
+        config_path = dir_path / CONFIG_FILE_NAME
+        assert config_path.exists()
+        with open(config_path, "r") as file:
+            config = json.load(file)
+        schedule = get_schedule(**config["schedule"])
+        return cls(config["time_steps"], schedule)
 
     @torch.no_grad()
     def __init__(
         self,
-        num_steps: int,
-        scheduler: Scheduler = LinearScheduler(),
+        time_steps: int,
+        schedule: Schedule,
         device: torch.device = torch.device("cpu"),
     ) -> None:
-        super().__init__(device)
-        self.num_steps = num_steps
-        self._betas = scheduler(torch.linspace(0.0, 1.0, num_steps)).to(self.device)
+        self.time_steps = time_steps
+        self.schedule = schedule
+        self.device = device
+        self._betas = schedule(torch.linspace(0.0, 1.0, time_steps)).to(self.device)
         self._betas_sqrt = torch.sqrt(self._betas)
         self._alphas = 1.0 - self._betas
         self._alphas_sqrt = torch.sqrt(self._alphas)
@@ -44,40 +57,6 @@ class DDPM:
         self._alpha_hats_sqrt = torch.sqrt(self._alpha_hats)
         self._one_minus_alpha_hats_sqrt = torch.sqrt(1.0 - self._alpha_hats)
         self._posterior_variances = self._betas * ()
-
-    def save(self, path: pathlib.Path) -> None:
-        pass
-
-    @torch.no_grad()
-    def sample(self, n: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Generate and save the images
-        for i in tqdm(range(n)):
-            for step in reversed(tqdm(range(0, self.time_steps), leave=False)):
-                noise = torch.randn(
-                    (n, 3, self.sample_size, self.sample_size), device=self.device
-                )
-                t = torch.full((n,), step, dtype=torch.long, device=self.device)
-                x_t = self.model(noise, t).sample
-                x_t_minus_one =
-
-
-                image = diffuser.sample(noise, t, prediction)
-                image = torch.clamp(image, -1.0, 1.0)
-            save_image(
-                args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
-            )
-
-        # Calculate x_(t-1)
-        result = (1 / self._alphas_sqrt[t]) * (
-            x_t - ((self._betas[t] * prediction) / self._one_minus_alpha_hats_sqrt[t])
-        )
-        if t == 0:
-            # Timestep is 0, return the result as is
-            return result
-        # Add random noise to the result
-        noise = torch.randn_like(x_t, device=self.device)
-        result += self._betas_sqrt[t] * noise
-        return result
 
     @torch.no_grad()
     def forward(
@@ -146,3 +125,27 @@ class DDPM:
         ) / gamma_sqrt_t
         reconstructed_images = torch.clamp(reconstructed_images, -1.0, 1.0)
         return reconstructed_images
+
+    def to(self, device: torch.device) -> None:
+        self._device = device
+        self._betas = self._betas.to(device)
+        self._betas_sqrt = self._betas_sqrt.to(device)
+        self._alphas = self._alphas.to(device)
+        self._alphas_sqrt = self._alphas_sqrt.to(device)
+        self._alpha_hats = self._alpha_hats.to(device)
+        self._alpha_hats_sqrt = self._alpha_hats_sqrt.to(device)
+        self._one_minus_alpha_hats_sqrt = self._one_minus_alpha_hats_sqrt.to(device)
+
+    def save(self, dir_path: pathlib.Path) -> None:
+        config_path = dir_path / CONFIG_FILE_NAME
+        config = {
+            "time_steps": self.time_steps,
+            "schedule": {
+                "type": self.schedule.type,
+                "start": self.schedule.start,
+                "end": self.schedule.end,
+                "tau": self.schedule.tau,
+            },
+        }
+        with open(config_path, "w") as file:
+            json.dump(config, file)
