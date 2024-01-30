@@ -9,8 +9,7 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 
-from src.data import create_dataloader, load_dataset, plot_loss, split_dataset
-from src.diffuser import GaussianDiffuser
+from src.ddpm import GaussianDiffuser
 from src.model import DiffusionModel
 from src.paths import OUT_DIR
 from src.schedule import (
@@ -20,6 +19,7 @@ from src.schedule import (
     Scheduler,
     SigmoidScheduler,
 )
+from src.utils import load_image
 
 
 def get_args() -> argparse.Namespace:
@@ -30,40 +30,28 @@ def get_args() -> argparse.Namespace:
         help='The name of the dataset.\nAllowed values: "CelebA", "MNIST", "FGVCAircraft", "CIFAR10", "LSUN".',
     )
     parser.add_argument(
-        "--name",
+        "--run-name",
         type=str,
         help="The name of the experiment. If not provided, the name will be generated from the timestamp, dataset and scheduler.",
         default=None,
     )
     parser.add_argument(
-        "--sample-size",
+        "--image-size",
         type=int,
         help="The size of the images in the dataset.",
         default=32,
     )
     parser.add_argument(
-        "--epochs",
+        "--time-steps",
         type=int,
-        help="The number of epochs to train for.",
-        default=300,
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="The batch size for the data loader.",
-        default=16,
+        help="The number of time steps for the diffusion process.",
+        default=1000,
     )
     parser.add_argument(
         "--schedule",
         type=str.lower,
         help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
         default="linear",
-    )
-    parser.add_argument(
-        "--schedule-steps",
-        type=int,
-        help="The number of time steps for the diffusion process.",
-        default=1000,
     )
     parser.add_argument(
         "--schedule-start",
@@ -82,6 +70,18 @@ def get_args() -> argparse.Namespace:
         type=float,
         help="The tau value for the schedule. Only applicable for polynomial, cosine and sigmoid schedules.",
         default=None,
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for the data loader.",
+        default=16,
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        help="The number of epochs to train for.",
+        default=300,
     )
     parser.add_argument(
         "--train-split-size",
@@ -131,16 +131,46 @@ def get_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+"""Functions"""
+
+
+def one_epoch():
+    pass
+
+
+def train():
+    pass
+
+
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    dataset_name: str = args.dataset
+    run_name: str = (
+        args.run_name
+        if args.run_name is not None
+        else f"{int(time.time())}_{args.dataset}_{args.schedule}"
+    )
+    image_size: int = args.image_size
+    epochs: int = args.epochs
+    batch_size: int = args.batch_size
+
+    time_steps: int = args.time_steps
+    schedule_name: str = args.schedule
+    schedule_start: int = args.schedule_start
+    schedule_end: int = args.schedule_end
+    schedule_tau: float = args.schedule_tau
+    image_size: int = args.image_size
+    out_dir: pathlib.Path = args.out_dir / run_name
     device = torch.device(args.device)
-    if not args.name:
-        args.name = f"{int(time.time())}_{args.dataset}_{args.schedule}"
-    args.outdir = args.outdir / args.name
+    verbose: bool = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+
+    # Validate the arguments
+    if not out_dir.exists():
+        os.makedirs(out_dir)
 
     # Prepare the logger
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     # Prepare the scheduler
     scheduler: Scheduler
@@ -173,8 +203,6 @@ if __name__ == "__main__":
     )
 
     # Prepare the output directory
-    if not args.outdir.exists():
-        os.makedirs(args.outdir)
 
     # Load the data
     logging.info("Loading dataset.")

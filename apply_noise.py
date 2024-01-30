@@ -4,18 +4,12 @@ import os
 import pathlib
 
 import torch
-from torchvision import transforms
+from tqdm import tqdm
 
-from src.data import image_to_tensor, load_images, plot_schedule, save_image
-from src.diffuser import GaussianDiffuser
+from src.ddpm import GaussianDiffuser
 from src.paths import OUT_DIR
-from src.schedule import (
-    CosineScheduler,
-    LinearScheduler,
-    PolynomialScheduler,
-    Scheduler,
-    SigmoidScheduler,
-)
+from src.schedule import get_schedule
+from src.utils import plot_schedule, save_image
 
 
 def get_args() -> argparse.Namespace:
@@ -32,7 +26,7 @@ def get_args() -> argparse.Namespace:
         default="linear",
     )
     parser.add_argument(
-        "--schedule-steps",
+        "--time-steps",
         type=int,
         help="The number of time steps for the diffusion process.",
         default=10,
@@ -62,7 +56,7 @@ def get_args() -> argparse.Namespace:
         default=128,
     )
     parser.add_argument(
-        "--outdir",
+        "--out-dir",
         type=pathlib.Path,
         help="The directory to save the results to.",
         default=OUT_DIR / "forward",
@@ -82,88 +76,53 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    image_path: pathlib.Path = args.image_path
+    time_steps: int = args.time_steps
+    schedule_name: str = args.schedule
+    schedule_start: int = args.schedule_start
+    schedule_end: int = args.schedule_end
+    schedule_tau: float = args.schedule_tau
+    image_size: int = args.image_size
+    out_dir: pathlib.Path = args.out_dir
     device = torch.device(args.device)
+    verbose: bool = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
 
-    # Prepare the logger
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-
-    # Prepare the scheduler
-    scheduler: Scheduler
-    if args.schedule == "linear":
-        scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
-    elif args.schedule == "polynomial":
-        scheduler = PolynomialScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 2.0,
-        )
-    elif args.schedule == "cosine":
-        scheduler = CosineScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    elif args.schedule == "sigmoid":
-        scheduler = SigmoidScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    else:
-        raise ValueError(f"Unknown scheduler: {args.scheduler}")
+    # Validate the arguments
+    assert image_path.exists()
+    if schedule_name == "linear":
+        assert schedule_tau is None
+    if not out_dir.exists():
+        os.makedirs(out_dir)
 
     # Prepare the diffuser
-    diffuser = GaussianDiffuser(
-        num_steps=args.schedule_steps, scheduler=scheduler, device=device
+    schedule = get_schedule(
+        schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
+    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
 
-    # Prepare the output directory
-    outdir = args.outdir / args.schedule
-    if not outdir.exists():
-        os.makedirs(outdir)
-
-    # Load the data
+    # Load the image
     logging.info(f'Loading image from "{args.image_path}"')
-    image = load_images(
-        args.image_path,
-        transformation=transforms.Compose(
-            [
-                image_to_tensor,
-                transforms.Resize((args.image_size, args.image_size), antialias=True),
-            ]
-        ),
-        device=device,
-    )
+    image = load_image(image_path, resize_to=image_size).to(device)
     image = image.reshape(shape=[1, *image.shape])
 
     # Apply noise to the image incrementally
     logging.info(
-        f"Applying noise to image for {args.schedule_steps} time steps with {args.schedule} schedule."
+        f"Applying noise to image within {time_steps} time steps with {schedule_name} schedule."
     )
-    noised_images = torch.zeros(
-        (args.schedule_steps, *image.squeeze().shape), device=device
+    noise_step_images = torch.zeros((args.schedule_steps, *image.squeeze().shape)).to(
+        device
     )
-    for t in range(args.schedule_steps):
+    for t in tqdm(range(time_steps)):
         noised_image, _ = diffuser.forward(image, torch.tensor([t]))
-        noised_images[t] = noised_image.squeeze()
+        noise_step_images[t] = noised_image.squeeze()
+    timeline = torch.cat(torch.unbind(noise_step_images, dim=0), dim=2)
 
-    # Export the noise process results
-    timeline_path = outdir / f"timeline.png"
-    logging.info(f'Saving noising process timeline to "{timeline_path}".')
-    timeline = torch.cat(
-        torch.unbind(noised_images, dim=0), dim=2
-    )  # concatenate along the width dimension
-    save_image(timeline_path, timeline)
-
-    # Export the individual images
-    logging.info(f'Saving individual images to "{outdir}".')
-    for i, noised_image in enumerate(noised_images):
-        file_path = outdir / f"image-{i + 1}.png"
-        save_image(file_path, noised_image)
-
-    # Export the schedule plot
-    plot_path = outdir / "schedule-plot.svg"
-    logging.info(f'Saving schedule plot to "{plot_path}".')
-    plot_schedule(scheduler, file_path=plot_path)
+    # Save the noise process results
+    logging.info(f'saving results to "{out_dir}".')
+    save_image(timeline, out_dir / f"timeline.png")
+    for i, noised_image in enumerate(noise_step_images):
+        save_image(out_dir / f"image-{i + 1}.png", noised_image)
+    plot_schedule(schedule, file_path=out_dir / "schedule-plot.svg")
 
     logging.info("Done.")

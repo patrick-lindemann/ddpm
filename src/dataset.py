@@ -1,3 +1,31 @@
+class DataLoader:
+    pass
+
+
+class CIFAR10(DataLoader):
+    pass
+
+
+class Flower102(DataLoader):
+    pass
+
+
+class CelebA(DataLoader):
+    pass
+
+
+class FGVCAircraft(DataLoader):
+    pass
+
+
+class QMNIST(DataLoader):
+    pass
+
+
+class LSUN(DataLoader):
+    pass
+
+
 import os
 import pathlib
 from typing import Callable, List, Literal, Optional, Tuple
@@ -19,39 +47,6 @@ from torchvision.datasets import (
 from src.paths import DATA_DIR
 
 from .transform import image_to_tensor
-
-
-def load_images(
-    file_path: pathlib.Path,
-    transformation: Callable = image_to_tensor,
-    device: torch.device = torch.device("cpu"),
-) -> torch.Tensor:
-    """_summary_
-
-    Parameters
-    ----------
-    file_path : pathlib.Path
-        The path to the image. If it is a directory, all images in the directory are loaded.
-    transformation : Callable, optional
-        The transformation that is applied to the images, by default image_to_tensor()
-    device : torch.device, optional
-        The device, by default torch.device("cpu")
-
-    Returns
-    -------
-    torch.Tensor
-        The tensor containing the images.
-    """
-    if file_path.is_dir():
-        tensors: List[torch.Tensor] = []
-        for file in file_path.iterdir():
-            image = Image.open(file).convert("RGB")
-            tensor = transformation(image).to(device)
-            tensors.append(tensor)
-        return torch.stack(tensors)
-    else:
-        image = Image.open(file_path)
-        return transformation(image).to(device)
 
 
 def load_dataset(

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.utils.data
 from torch.nn import functional as F
@@ -7,6 +5,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.models.inception import Inception_V3_Weights, inception_v3
 from tqdm import tqdm
+
+"""Functions"""
 
 
 @torch.no_grad()
@@ -51,7 +51,6 @@ def calculate_inception_score(
     inception.eval()
     # Prepare the preduction function
     predictions: torch.Tensor = torch.zeros((N, 1000), device=device)
-
     for i, batch in enumerate(tqdm(data_loader)):
         prediction = F.softmax(inception(batch), dim=1)
         predictions[i * batch_size : (i + 1) * batch_size] = prediction

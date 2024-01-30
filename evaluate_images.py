@@ -4,8 +4,8 @@ import pathlib
 
 import torch
 
-from src.data import load_images
-from src.eval import calculate_inception_score
+from src.inception import calculate_inception_score
+from src.utils import load_images
 
 
 def get_args() -> argparse.Namespace:
@@ -30,14 +30,17 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    image_dir: pathlib.Path = args.image_dir
     device = torch.device(args.device)
+    verbose: bool = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
 
-    # Prepare the logger
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    # Validate the arguments
+    assert image_dir.exists()
 
     # Load the images
-    logging.info(f"Loading images from {args.image_dir}.")
-    images = load_images(args.image_dir, device=device)
+    logging.info(f"Loading images from {image_dir}.")
+    images = load_images(image_dir).to(device)
     logging.info(f"Loaded {len(images)} images.")
 
     # Calculate the inception scores

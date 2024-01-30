@@ -1,3 +1,91 @@
+import numpy
+from torchvision import transforms
+
+image_to_tensor = transforms.Compose(
+    [
+        transforms.ToTensor(),  # Create tensor with dimensions (C=3, W, H)
+        transforms.Lambda(lambda t: (t * 2) - 1),  # Scale data between [-1., 1.]
+    ]
+)
+
+tensor_to_image = transforms.Compose(
+    [
+        transforms.Lambda(lambda t: (t + 1) / 2),  # Scale data between [0., 1.]
+        transforms.Lambda(lambda t: t.permute(1, 2, 0)),  # CHW to HWC
+        transforms.Lambda(
+            lambda t: (t * 255.0).numpy().astype(numpy.uint8)
+        ),  # Scale data between [0., 255.]
+    ]
+)
+
+import pathlib
+from typing import Callable, Optional
+
+import torch
+from torchvision import transforms
+
+from .transform import tensor_to_image
+
+# For resizing
+image_transformation = transforms.Compose(
+    [image_to_tensor, transforms.Resize((image_size, image_size), antialias=True)]
+)
+
+
+def load_images(
+    file_path: pathlib.Path,
+    transformation: Callable = image_to_tensor,
+) -> torch.Tensor:
+    """_summary_
+
+    Parameters
+    ----------
+    file_path : pathlib.Path
+        The path to the image. If it is a directory, all images in the directory are loaded.
+    transformation : Callable, optional
+        The transformation that is applied to the images, by default image_to_tensor()
+    device : torch.device, optional
+        The device, by default torch.device("cpu")
+
+    Returns
+    -------
+    torch.Tensor
+        The tensor containing the images.
+    """
+    if file_path.is_dir():
+        tensors: List[torch.Tensor] = []
+        for file in file_path.iterdir():
+            image = Image.open(file).convert("RGB")
+            tensor = transformation(image).to(device)
+            tensors.append(tensor)
+        return torch.stack(tensors)
+    else:
+        image = Image.open(file_path)
+        return transformation(image).to(device)
+
+
+def save_image(
+    file_path: pathlib.Path,
+    image: torch.Tensor,
+    transform: Optional[Callable] = tensor_to_image,
+) -> None:
+    """_summary_
+
+    Parameters
+    ----------
+    file_path : pathlib.Path
+        _description_
+    data : torch.Tensor
+        _description_
+    transform : Optional[Callable], optional
+        _description_, by default tensor_to_image
+    """
+    image = image.to("cpu")
+    transform = transforms.Compose([transform, transforms.ToPILImage()])
+    image_transformed = transform(image)
+    image_transformed.save(file_path)
+
+
 import pathlib
 from typing import Callable, Optional
 
