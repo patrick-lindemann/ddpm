@@ -27,7 +27,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-name",
         type=str,
-        help="The name of the experiment. If not provided, the name will be generated from the timestamp, dataset and scheduler.",
+        help="The name of the experiment. If not provided, the name will be the timestamp.",
         default=None,
     )
     parser.add_argument(
@@ -73,28 +73,21 @@ def get_args() -> argparse.Namespace:
         default=300,
     )
     parser.add_argument(
-        "--validate-at",
+        "--subset-size",
         type=int,
-        help="Validate the model with the test set every nth epoch.",
+        help="The number of samples to use from the dataset. If not provided, the entire dataset is used.",
         default=None,
     )
     parser.add_argument(
-        "--sample-at",
-        type=int,
-        help="Sample every nth epoch.",
-        default=None,
-    )
-    parser.add_argument(
-        "--train-size",
+        "--train-split",
         type=float,
-        help="The size of the training set. Can be a percentage in [0, 1] or an integer specifying the number of training samples.",
+        help="The percentage in [0, 1] of the dataset to use for training.",
         default=0.8,
     )
     parser.add_argument(
-        "--test-size",
-        type=float,
-        help="The size of the test set. Can be a percentage in [0, 1] or an integer specifying the number of test samples.",
-        default=0.2,
+        "--disable-validation",
+        action="store_true",
+        help="Disable validation on the test set during training.",
     )
     parser.add_argument(
         "--batch-size",
@@ -124,7 +117,7 @@ def get_args() -> argparse.Namespace:
         "--out-dir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default=OUT_DIR / "train",
+        default=OUT_DIR / "runs",
     )
     parser.add_argument(
         "--device",
@@ -145,7 +138,7 @@ if __name__ == "__main__":
     run_name: str = (
         args.run_name
         if args.run_name is not None
-        else f"{int(time.time())}_{args.dataset}_{args.schedule}"
+        else f"{int(time.time())}-{dataset_name}"
     )
     image_size: int = args.image_size
     time_steps: int = args.time_steps
@@ -154,10 +147,9 @@ if __name__ == "__main__":
     schedule_end: int = args.schedule_end
     schedule_tau: float | None = args.schedule_tau
     epochs: int = args.epochs
-    validate_at: int | None = args.validate_at
-    sample_at: int | None = args.sample_at
-    train_size: float = args.train_size
-    test_size: float = args.test_size
+    do_validation: bool = not args.disable_validation
+    subset_size: int | None = args.subset_size
+    train_split: float = args.train_split
     batch_size: int = args.batch_size
     learning_rate: float = args.learning_rate
     dropout_rate: float = args.dropout_rate
@@ -169,12 +161,20 @@ if __name__ == "__main__":
     if seed is not None:
         torch.manual_seed(seed)
 
+    # Load the dataset
+    dataset = load_dataset(dataset_name, resize_to=image_size)
+
     # Validate the arguments
+    dataset_size = subset_size if subset_size is not None else len(dataset)
+    assert batch_size < dataset_size
+    train_size = int(dataset_size * train_split)
+    test_size = dataset_size - train_size
+    if do_validation:
+        assert test_size > 0
     if not out_dir.exists():
         os.makedirs(out_dir)
 
-    # Prepare the dataset, model and training
-    dataset = load_dataset(dataset_name, resize_to=image_size)
+    # Prepare the model and training
     train_loader, test_loader = create_dataloaders(
         dataset,
         train_size=train_size,
@@ -198,12 +198,12 @@ if __name__ == "__main__":
     train_losses: Dict[int, float] = {}
     test_losses: Dict[int, float] = {}
     learning_rates: Dict[int, float] = {}
-    for epoch in tqdm(range(args.epochs, "epochs")):
+    for epoch in tqdm(range(epochs)):
         train_loss = 0.0
-        for step, batch in enumerate(tqdm(train_loader, "train", leave=False)):
+        for step, batch in enumerate(tqdm(train_loader, desc="train", leave=False)):
             optimizer.zero_grad()
             images = batch[0]
-            t = torch.randint(0, time_steps, (batch_size,), device=device)
+            t = torch.randint(0, time_steps, (images.shape[0],), device=device)
             noised_images, noises = diffuser.forward(images, t)
             predicted_noises = model(noised_images.float(), t).sample
             loss = loss_func(predicted_noises, noises)
@@ -211,21 +211,20 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
         train_losses[epoch] = train_loss / len(train_loader)
-        learning_rates[epoch] = lr_scheduler.get_lr()
+        learning_rates[epoch] = lr_scheduler.get_last_lr()[0]
         lr_scheduler.step()
-        if validate_at is not None and epoch % validate_at == 0:
+        if do_validation:
             test_loss = 0.0
-            with torch.no_grad():
-                for step, batch in enumerate(tqdm(test_loader, "test", leave=False)):
-                    images = batch[0]
-                    t = torch.randint(0, time_steps, (batch_size,), device=device)
-                    noised_images, noises = diffuser.forward(images, t)
-                    predicted_noises = model(noised_images.float(), t).sample
-                    loss = loss_func(predicted_noises, noises)
-                    test_loss += loss.item()
+            model.eval()
+            for step, batch in enumerate(tqdm(test_loader, desc="test", leave=False)):
+                images = batch[0]
+                t = torch.randint(0, time_steps, (images.shape[0],), device=device)
+                noised_images, noises = diffuser.forward(images, t)
+                predicted_noises = model(noised_images.float(), t).sample
+                loss = loss_func(predicted_noises, noises)
+                test_loss += loss.item()
             test_losses[epoch] = test_loss / len(test_loader)
-        if sample_at is not None and epoch % sample_at == 0:
-            for step, batch
+            model.train()
 
     # Export the model and diffuser
     logging.info(f"Saving model and diffuser to {out_dir}.")
@@ -237,15 +236,15 @@ if __name__ == "__main__":
         "name": run_name,
         "dataset": dataset_name,
         "dataset_size": len(dataset),
-        "train_size": int(train_size * len(dataset)),
-        "test_size": int(test_size * len(dataset)),
+        "train_size": len(train_loader),
+        "test_size": len(test_loader) if do_validation else None,
         "epochs": epochs,
         "batch_size": batch_size,
         "learning_rates": learning_rates,
         "train_losses": train_losses,
         "test_losses": test_losses,
     }
-    metadata_path = args.outdir / "run.json"
+    metadata_path = out_dir / "run.json"
     logging.info(f"Saving metadata to {metadata_path}.")
     with open(metadata_path, "w") as file:
         json.dump(metadata, file)

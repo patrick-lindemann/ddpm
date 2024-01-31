@@ -62,6 +62,7 @@ class DenoisingUNet2D(UNet2DModel):
         up_block_types: List[UpBlockType] = [
             "AttnUpBlock2D",
             "AttnUpBlock2D",
+            "AttnUpBlock2D",
             "UpBlock2D",
         ],
         layers_per_block: int = 2,
@@ -83,8 +84,8 @@ class DenoisingUNet2D(UNet2DModel):
         )
         self._config: DenoisingUNet2DConfig = {
             "image_size": image_size,
-            "down_blocks_types": down_block_types,
-            "up_blocks_types": up_block_types,
+            "down_block_types": down_block_types,
+            "up_block_types": up_block_types,
             "layers_per_block": layers_per_block,
             "time_embedding_type": time_embedding_type,
             "dropout_rate": dropout_rate,

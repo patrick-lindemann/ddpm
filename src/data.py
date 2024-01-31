@@ -61,22 +61,22 @@ def load_dataset(
 
 def create_dataloaders(
     dataset: Dataset,
-    train_size: float | int = 0.8,
-    test_size: Optional[float | int] = None,
+    train_size: float | int,
+    test_size: float | int,
     batch_size: int = 16,
     shuffle: bool = True,
     seed: Optional[int] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[DataLoader, DataLoader]:
-    if isinstance(train_size, int):
-        assert train_size <= len(dataset)
+    if train_size > 1.0:
+        assert isinstance(train_size, int)
+        assert 0 <= train_size <= len(dataset)
         train_size = float(train_size) / len(dataset)
-    if test_size is None:
-        test_size = 1.0 - train_size
-    elif isinstance(test_size, int):
-        assert test_size <= len(dataset)
+    if test_size > 1.0:
+        assert isinstance(test_size, int)
+        assert 0 <= test_size <= len(dataset)
         test_size = float(test_size) / len(dataset)
-    assert batch_size <= len(dataset)
+    assert train_size + test_size <= 1.0
     train_indices, test_indices = train_test_split(
         numpy.arange(len(dataset)),
         train_size=train_size,

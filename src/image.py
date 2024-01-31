@@ -47,7 +47,7 @@ def load_image(
     return image_transformed
 
 
-def save_image(file_path: pathlib.Path, image: torch.Tensor) -> None:
+def save_image(image: torch.Tensor, file_path: pathlib.Path) -> None:
     image = image.to("cpu")
     transform = transforms.Compose([tensor_to_image, transforms.ToPILImage()])
     image_transformed: PIL.Image.Image = transform(image)

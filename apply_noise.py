@@ -63,12 +63,6 @@ def get_args() -> argparse.Namespace:
         default=OUT_DIR / "forward",
     )
     parser.add_argument(
-        "--device",
-        type=str.lower,
-        help='The device to use.\nAllowed values: "cpu", "cuda".',
-        default="cuda" if torch.cuda.is_available() else "cpu",
-    )
-    parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."
     )
     return parser.parse_args()
@@ -85,7 +79,6 @@ if __name__ == "__main__":
     schedule_end: int = args.schedule_end
     schedule_tau: float | None = args.schedule_tau
     out_dir: pathlib.Path = args.out_dir / schedule_name
-    device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
 
@@ -100,18 +93,18 @@ if __name__ == "__main__":
     schedule = get_schedule(
         schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
     )
-    diffuser = GaussianDiffuser(num_steps=time_steps, schedule=schedule, device=device)
+    diffuser = GaussianDiffuser(time_steps, schedule)
 
     # Load the image
     logging.info(f'Loading image from "{image_path}"')
-    image = load_image(image_path, resize_to=image_size).to(device)
+    image = load_image(image_path, resize_to=image_size)
     image = image.reshape(shape=[1, *image.shape])
 
     # Apply noise to the image incrementally
     logging.info(
         f"Applying noise to image within {time_steps} time steps with {schedule_name} schedule."
     )
-    noise_step_images = torch.zeros((time_steps, *image.squeeze().shape)).to(device)
+    noise_step_images = torch.zeros((time_steps, *image.squeeze().shape))
     for t in tqdm(range(time_steps)):
         noised_image, _ = diffuser.forward(image, torch.tensor([t]))
         noise_step_images[t] = noised_image.squeeze()
@@ -121,7 +114,7 @@ if __name__ == "__main__":
     logging.info(f'saving results to "{out_dir}".')
     save_image(timeline, out_dir / f"timeline.png")
     for i, noised_image in enumerate(noise_step_images):
-        save_image(out_dir / f"image-{i + 1}.png", noised_image)
-    plot_schedule(schedule, file_path=out_dir / "schedule-plot.svg")
+        save_image(noised_image, out_dir / f"image-{i + 1}.png")
+    # plot_schedule(schedule, file_path=out_dir / "schedule-plot.svg")
 
     logging.info("Done.")

@@ -2,23 +2,21 @@ import argparse
 import logging
 import os
 import pathlib
-import uuid
 
 import torch
 from tqdm import tqdm
 
 from src.diffuser import GaussianDiffuser
-from src.model import DenoisingUNet2D
-from src.paths import OUT_DIR
 from src.image import save_image
+from src.model import DenoisingUNet2D
 
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "run_dir"
-        type=str,
-        help="The path to the model to test.\nThe model directory needs to contain a model.pt and a metadata.json file.",
+        "run_dir",
+        type=pathlib.Path,
+        help="The path to the run.",
     )
     parser.add_argument(
         "--model-path",
@@ -34,8 +32,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch-size",
         type=int,
-        help="The batch size for generating images.\nMust be a divisor of num_images, e.g. for 12 generated images batch sizes of 1, 2, 3, 4 and 6 are possible.",
-        default=1,
+        help="The batch size for generating images.\nMust be a divisor of num_images.",
+        default=None,
     )
     parser.add_argument(
         "--seed",
@@ -65,12 +63,14 @@ if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
     num_images: int = args.num_images
-    batch_size: int = args.batch_size
+    batch_size: int = args.batch_size if args.batch_size is not None else num_images
     num_batches = num_images // batch_size
     run_dir: pathlib.Path = args.run_dir
     run_name = run_dir.name
     seed: int = args.seed
-    out_dir = args.outdir if args.outdir is not None else OUT_DIR / "images" / run_name
+    out_dir = (
+        args.out_dir if args.out_dir is not None else run_dir / "samples" / "generated"
+    )
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     # Validate the arguments
     assert run_dir.exists()
-    assert batch_size < num_images
+    assert batch_size <= num_images
     assert num_images % batch_size == 0
     if not out_dir.exists():
         os.makedirs(out_dir)
@@ -94,6 +94,6 @@ if __name__ == "__main__":
     logging.debug(f"Using {num_batches} batches with size {batch_size}.")
     for _ in tqdm(range(num_batches)):
         images: torch.Tensor = diffuser.sample(model, batch_size)
-        for image in images:
-            image_path = out_dir / f"{uuid.uuid4()}.png"
+        for i, image in enumerate(images):
+            image_path = out_dir / f"{i}.png"
             save_image(image, image_path)
