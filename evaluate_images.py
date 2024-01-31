@@ -5,13 +5,8 @@ from typing import List
 
 import torch
 
-<<<<<<< HEAD
-from src.data import load_images
-from src.eval import calculate_inception_score
-=======
 from src.image import is_image_path, load_image
 from src.inception import INCEPTION_IMAGE_SIZE, calculate_inception_score
->>>>>>> update
 
 
 def get_args() -> argparse.Namespace:
