@@ -1,6 +1,7 @@
 import argparse
 import logging
 import pathlib
+from typing import List
 
 import torch
 
@@ -38,17 +39,18 @@ if __name__ == "__main__":
     # Validate the arguments
     assert image_dir.exists()
     assert image_dir.is_dir()
+    image_paths: List[pathlib.Path] = []
     for file_path in image_dir.iterdir():
-        assert is_image_path(
-            file_path
-        ), f"The folder {image_dir} must only contain images."
+        if is_image_path(file_path):
+            image_paths.append(file_path)
+    assert len(image_paths) > 0, f"No images found in the directory {image_dir}."
 
     # Load the images
-    N = len(list(image_dir.iterdir()))
+    N = len(image_paths)
     logging.info(f"Loading {N} images from {image_dir}.")
     images = torch.zeros((N, 3, INCEPTION_IMAGE_SIZE, INCEPTION_IMAGE_SIZE))
-    for i, file in enumerate(image_dir.iterdir()):
-        image = load_image(file, resize_to=INCEPTION_IMAGE_SIZE)
+    for i, image_path in enumerate(image_paths):
+        image = load_image(image_path, resize_to=INCEPTION_IMAGE_SIZE)
         images[i] = image
 
     # Calculate the inception scores
