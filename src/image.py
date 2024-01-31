@@ -39,7 +39,9 @@ def load_image(
     assert file_path.is_file()
     image = PIL.Image.open(file_path)
     transform = (
-        transforms.Compose([image_to_tensor, transforms.Resize(resize_to)])
+        transforms.Compose(
+            [image_to_tensor, transforms.Resize(resize_to, antialias=True)]
+        )
         if resize_to is not None
         else image_to_tensor
     )
