@@ -4,11 +4,13 @@ import logging
 import os
 import pathlib
 import time
+from typing import Dict
 
 import torch
 import torch.utils.data
 from tqdm import tqdm
 
+<<<<<<< HEAD
 from src.data import create_dataloader, load_dataset, plot_loss, split_dataset
 from src.diffuser import GaussianDiffuser
 from src.model import DiffusionModel
@@ -20,6 +22,13 @@ from src.schedule import (
     Scheduler,
     SigmoidScheduler,
 )
+=======
+from src.data import create_dataloaders, load_dataset
+from src.diffuser import GaussianDiffuser
+from src.model import DenoisingUNet2D
+from src.paths import OUT_DIR
+from src.schedule import get_schedule
+>>>>>>> update
 
 
 def get_args() -> argparse.Namespace:
@@ -30,40 +39,28 @@ def get_args() -> argparse.Namespace:
         help='The name of the dataset.\nAllowed values: "CelebA", "MNIST", "FGVCAircraft", "CIFAR10", "LSUN".',
     )
     parser.add_argument(
-        "--name",
+        "--run-name",
         type=str,
-        help="The name of the experiment. If not provided, the name will be generated from the timestamp, dataset and scheduler.",
+        help="The name of the experiment. If not provided, the name will be the timestamp.",
         default=None,
     )
     parser.add_argument(
-        "--sample-size",
+        "--image-size",
         type=int,
         help="The size of the images in the dataset.",
         default=32,
     )
     parser.add_argument(
-        "--epochs",
+        "--time-steps",
         type=int,
-        help="The number of epochs to train for.",
-        default=300,
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="The batch size for the data loader.",
-        default=16,
+        help="The number of time steps for the diffusion process.",
+        default=1000,
     )
     parser.add_argument(
         "--schedule",
         type=str.lower,
         help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
         default="linear",
-    )
-    parser.add_argument(
-        "--schedule-steps",
-        type=int,
-        help="The number of time steps for the diffusion process.",
-        default=1000,
     )
     parser.add_argument(
         "--schedule-start",
@@ -84,10 +81,33 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
-        "--train-split-size",
+        "--epochs",
+        type=int,
+        help="The number of epochs to train for.",
+        default=300,
+    )
+    parser.add_argument(
+        "--subset-size",
+        type=int,
+        help="The number of samples to use from the dataset. If not provided, the entire dataset is used.",
+        default=None,
+    )
+    parser.add_argument(
+        "--train-split",
         type=float,
-        help="The size of the training set.",
+        help="The percentage in [0, 1] of the dataset to use for training.",
         default=0.8,
+    )
+    parser.add_argument(
+        "--disable-validation",
+        action="store_true",
+        help="Disable validation on the test set during training.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for the data loader.",
+        default=16,
     )
     parser.add_argument(
         "--learning-rate",
@@ -96,28 +116,22 @@ def get_args() -> argparse.Namespace:
         default=1e-3,
     )
     parser.add_argument(
-        "--learning-rate-stepsize",
-        type=int,
-        help="The step size for the learning rate scheduler.",
-        default=5,
-    )
-    parser.add_argument(
-        "--learning-rate-gamma",
-        type=float,
-        help="The gamma value for the learning rate scheduler.",
-        default=0.8,
-    )
-    parser.add_argument(
         "--dropout-rate",
         type=float,
         help="The dropout rate for the model.",
         default=0.1,
     )
     parser.add_argument(
-        "--outdir",
+        "--seed",
+        type=int,
+        help="The random seed to use.",
+        default=None,
+    )
+    parser.add_argument(
+        "--out-dir",
         type=pathlib.Path,
         help="The directory to save the results to.",
-        default=OUT_DIR / "train",
+        default=OUT_DIR / "runs",
     )
     parser.add_argument(
         "--device",
@@ -134,148 +148,117 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
-    device = torch.device(args.device)
-    if not args.name:
-        args.name = f"{int(time.time())}_{args.dataset}_{args.schedule}"
-    args.outdir = args.outdir / args.name
-
-    # Prepare the logger
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-
-    # Prepare the scheduler
-    scheduler: Scheduler
-    if args.schedule == "linear":
-        scheduler = LinearScheduler(start=args.schedule_start, end=args.schedule_end)
-    elif args.schedule == "polynomial":
-        scheduler = PolynomialScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 2.0,
-        )
-    elif args.schedule == "cosine":
-        scheduler = CosineScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    elif args.schedule == "sigmoid":
-        scheduler = SigmoidScheduler(
-            start=args.schedule_start,
-            end=args.schedule_end,
-            tau=args.schedule_tau or 1.0,
-        )
-    else:
-        raise ValueError(f"Unknown scheduler: {args.scheduler}")
-
-    # Prepare the diffuser
-    diffuser = GaussianDiffuser(
-        num_steps=args.schedule_steps, scheduler=scheduler, device=device
+    dataset_name: str = args.dataset
+    run_name: str = (
+        args.run_name
+        if args.run_name is not None
+        else f"{int(time.time())}-{dataset_name}"
     )
+    image_size: int = args.image_size
+    time_steps: int = args.time_steps
+    schedule_name: str = args.schedule
+    schedule_start: int = args.schedule_start
+    schedule_end: int = args.schedule_end
+    schedule_tau: float | None = args.schedule_tau
+    epochs: int = args.epochs
+    do_validation: bool = not args.disable_validation
+    subset_size: int | None = args.subset_size
+    train_split: float = args.train_split
+    batch_size: int = args.batch_size
+    learning_rate: float = args.learning_rate
+    dropout_rate: float = args.dropout_rate
+    seed: int = args.seed
+    out_dir: pathlib.Path = args.out_dir / run_name
+    device = torch.device(args.device)
+    verbose: bool = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    # Load the dataset
+    dataset = load_dataset(dataset_name, resize_to=image_size)
+
+    # Validate the arguments
+    dataset_size = subset_size if subset_size is not None else len(dataset)
+    assert batch_size < dataset_size
+    train_size = int(dataset_size * train_split)
+    test_size = dataset_size - train_size
+    if do_validation:
+        assert test_size > 0
+    if not out_dir.exists():
+        os.makedirs(out_dir)
+
+    # Prepare the model and training
+    train_loader, test_loader = create_dataloaders(
+        dataset,
+        train_size=train_size,
+        test_size=test_size,
+        batch_size=batch_size,
+        shuffle=True,
+        seed=seed,
+        device=device,
+    )
+    schedule = get_schedule(
+        schedule_name, start=schedule_start, end=schedule_end, tau=schedule_tau
+    )
+    model = DenoisingUNet2D(image_size, dropout_rate=dropout_rate).to(device)
+    diffuser = GaussianDiffuser(time_steps, schedule).to(device)
+    loss_func = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.99)
 
     # Prepare the output directory
-    if not args.outdir.exists():
-        os.makedirs(args.outdir)
-
-    # Load the data
-    logging.info("Loading dataset.")
-    dataset = load_dataset(args.dataset)
-    train_indices, test_indices = split_dataset(
-        dataset, train_size=args.train_split_size
-    )
-    train_loader = create_dataloader(
-        dataset, train_indices, batch_size=args.batch_size, device=device
-    )
-
-    # Prepare the model
-    model = DiffusionModel(sample_size=args.sample_size, dropout_rate=args.dropout_rate)
-    model.to(device)
-    loss_func = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=args.learning_rate_stepsize, gamma=args.learning_rate_gamma
-    )
-
-    # Train the model
-    logging.info(
-        f"Starting training for {args.epochs} epochs with batch size {args.batch_size}."
-    )
-    epoch_losses = torch.zeros(args.epochs, dtype=torch.float32, device=device)
-    for epoch in tqdm(range(args.epochs)):
-        epoch_loss_sum = 0
-        for step, batch in enumerate(tqdm(train_loader, leave=False)):
+    logging.info(f"Starting training for {epochs} epochs with batch size {batch_size}.")
+    train_losses: Dict[int, float] = {}
+    test_losses: Dict[int, float] = {}
+    learning_rates: Dict[int, float] = {}
+    for epoch in tqdm(range(epochs)):
+        train_loss = 0.0
+        for step, batch in enumerate(tqdm(train_loader, desc="train", leave=False)):
             optimizer.zero_grad()
-            image_batch = batch[0]
-            # Select a random time step for each image in the batch and apply the
-            # noise for that time step
-            t = torch.randint(0, args.schedule_steps, (args.batch_size,), device=device)
-            noised_image_batch, noise_batch = diffuser.forward(image_batch, t)
-            # Predict the noise for the noised images and calculate the loss
-            predicted_noise_batch = model(noised_image_batch.float(), t).sample
-            loss = loss_func(predicted_noise_batch, noise_batch)
-            epoch_loss_sum += loss.item()
-            # Backpropagate the loss and update the model parameters
+            images = batch[0]
+            t = torch.randint(0, time_steps, (images.shape[0],), device=device)
+            noised_images, noises = diffuser.forward(images, t)
+            predicted_noises = model(noised_images.float(), t).sample
+            loss = loss_func(predicted_noises, noises)
+            train_loss += loss.item()
             loss.backward()
             optimizer.step()
-        epoch_loss = epoch_loss_sum / len(dataset)
-        epoch_losses[epoch] = epoch_loss
-        # Update the learning rate
+        train_losses[epoch] = train_loss / len(train_loader)
+        learning_rates[epoch] = lr_scheduler.get_last_lr()[0]
         lr_scheduler.step()
-        # TODO: Save the model if the loss is the best so far
+        if do_validation:
+            test_loss = 0.0
+            model.eval()
+            for step, batch in enumerate(tqdm(test_loader, desc="test", leave=False)):
+                images = batch[0]
+                t = torch.randint(0, time_steps, (images.shape[0],), device=device)
+                noised_images, noises = diffuser.forward(images, t)
+                predicted_noises = model(noised_images.float(), t).sample
+                loss = loss_func(predicted_noises, noises)
+                test_loss += loss.item()
+            test_losses[epoch] = test_loss / len(test_loader)
+            model.train()
+
+    # Export the model and diffuser
+    logging.info(f"Saving model and diffuser to {out_dir}.")
+    model.save(out_dir)
+    diffuser.save(out_dir)
 
     # Export the metadata
     metadata = {
-        "training": {
-            "epochs": args.epochs,
-            "batch_size": args.batch_size,
-            "learning_rate": args.learning_rate,
-            "learning_rate_stepsize": args.learning_rate_stepsize,
-            "learning_rate_gamma": args.learning_rate_gamma,
-            "losses": epoch_losses.tolist(),
-            "final_loss": epoch_losses[-1].item(),
-        },
-        "model": {
-            "sample_size": args.sample_size,
-            "down_blocks": len(model.down_blocks),
-            "up_blocks": len(model.up_blocks),
-            "dropout_rate": args.dropout_rate,
-        },
-        "schedule": {
-            "type": scheduler.name,
-            "start": scheduler.start,
-            "end": scheduler.end,
-            "tau": scheduler.tau if scheduler.name != "linear" else None,
-            "steps": args.schedule_steps,
-        },
-        "dataset": {
-            "name": args.dataset,
-            "size": len(dataset),
-            "batch_size": args.batch_size,
-            "split": {
-                "train": {
-                    "size": len(train_indices),
-                    "indices": train_indices,
-                },
-                "test": {
-                    "size": len(test_indices),
-                    "indices": test_indices,
-                },
-            },
-        },
+        "name": run_name,
+        "dataset": dataset_name,
+        "dataset_size": len(dataset),
+        "train_size": len(train_loader),
+        "test_size": len(test_loader) if do_validation else None,
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "learning_rates": learning_rates,
+        "train_losses": train_losses,
+        "test_losses": test_losses,
     }
-    metadata_path = args.outdir / "metadata.json"
+    metadata_path = out_dir / "run.json"
     logging.info(f"Saving metadata to {metadata_path}.")
     with open(metadata_path, "w") as file:
         json.dump(metadata, file)
-
-    # Plot the losses
-    losses_path = args.outdir / "train-loss.svg"
-    logging.info(f"Saving loss plot to {losses_path}.")
-    plot_loss(
-        losses=epoch_losses.cpu(),
-        file_path=losses_path,
-    )
-
-    # Export the model
-    model_path = args.outdir / "model.pt"
-    logging.info(f"Saving model to {model_path}.")
-    torch.save(model.state_dict(), model_path)

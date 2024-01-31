@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import os
 import pathlib
@@ -7,6 +6,7 @@ import pathlib
 import torch
 from tqdm import tqdm
 
+<<<<<<< HEAD
 from src.data import save_image, tensor_to_image
 from src.diffuser import GaussianDiffuser
 from src.model import DiffusionModel
@@ -18,20 +18,48 @@ from src.schedule import (
     Scheduler,
     SigmoidScheduler,
 )
+=======
+from src.diffuser import GaussianDiffuser
+from src.image import save_image
+from src.model import DenoisingUNet2D
+>>>>>>> update
 
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "model_dir",
+        "run_dir",
         type=pathlib.Path,
-        help="The path to the model to test.\nThe model directory needs to contain a model.pt and a metadata.json file.",
+        help="The path to the run.",
     )
     parser.add_argument(
-        "--num-images",
+        "--model-path",
+        type=pathlib.Path,
+        help='The path to the model directory, which contains the files "config.json" and "weights.pt".',
+        default=None,
+    )
+    parser.add_argument(
+        "num_images",
         type=int,
         help="The number of images to generate.",
-        default=10,
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="The batch size for generating images.\nMust be a divisor of num_images.",
+        default=None,
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="The random seed to use.",
+        default=None,
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=pathlib.Path,
+        help="The directory to save the results to. If not specified, the images are saved to <out_dir>/images/<run_name>.",
+        default=None,
     )
     parser.add_argument(
         "--batch-size",
@@ -46,12 +74,6 @@ def get_args() -> argparse.Namespace:
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
-        "--outdir",
-        type=pathlib.Path,
-        help="The directory to save the results to.",
-        default=OUT_DIR / "generated",
-    )
-    parser.add_argument(
         "--verbose", action="store_true", help="Enable verbose logging."
     )
     return parser.parse_args()
@@ -60,61 +82,35 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
+    num_images: int = args.num_images
+    batch_size: int = args.batch_size if args.batch_size is not None else num_images
+    num_batches = num_images // batch_size
+    run_dir: pathlib.Path = args.run_dir
+    run_name = run_dir.name
+    seed: int = args.seed
+    out_dir = (
+        args.out_dir if args.out_dir is not None else run_dir / "samples" / "generated"
+    )
     device = torch.device(args.device)
-    args.outdir = args.outdir / args.model_dir.name
+    verbose: bool = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+    if seed is not None:
+        torch.manual_seed(seed)
 
-    # Prepare the logger
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-
-    # Load the metadata
-    metadata_path = args.model_dir / "metadata.json"
-    logging.info(f"Loading metadata from {metadata_path}.")
-    with open(metadata_path, "r") as file:
-        metadata = json.load(file)
-
-    # Load the trained model
-    model_path = args.model_dir / "model.pt"
-    logging.info(f"Loading model from {model_path}.")
-    model = DiffusionModel(**metadata["model"])
-    model.load_state_dict(torch.load(model_path))
-    model.to(device)
-
-    # Prepare the output directory
-    if not args.outdir.exists():
-        os.makedirs(args.outdir)
-
-    # Prepare the scheduler
-    scheduler: Scheduler
-    if metadata["schedule"]["type"] == "linear":
-        scheduler = LinearScheduler(
-            start=metadata["schedule"]["start"], end=metadata["schedule"]["end"]
-        )
-    elif metadata["schedule"]["type"] == "polynomial":
-        scheduler = PolynomialScheduler(
-            start=metadata["schedule"]["start"],
-            end=metadata["schedule"]["end"],
-            tau=metadata["schedule"]["tau"],
-        )
-    elif metadata["schedule"]["type"] == "cosine":
-        scheduler = CosineScheduler(
-            start=metadata["schedule"]["start"],
-            end=metadata["schedule"]["end"],
-            tau=metadata["schedule"]["tau"],
-        )
-    elif metadata["schedule"]["type"] == "sigmoid":
-        scheduler = SigmoidScheduler(
-            start=metadata["schedule"]["start"],
-            end=metadata["schedule"]["end"],
-            tau=metadata["schedule"]["tau"],
-        )
-    else:
-        raise ValueError(f"Unknown scheduler: {metadata['schedule']['type']}")
+    # Validate the arguments
+    assert run_dir.exists()
+    assert batch_size <= num_images
+    assert num_images % batch_size == 0
+    if not out_dir.exists():
+        os.makedirs(out_dir)
 
     # Prepare the diffuser
-    num_steps = metadata["schedule"]["steps"]
-    diffuser = GaussianDiffuser(num_steps=num_steps, scheduler=scheduler, device=device)
+    logging.info(f'Loading model from "{run_dir}".')
+    model = DenoisingUNet2D.load(run_dir).to(device)
+    diffuser = GaussianDiffuser.load(run_dir).to(device)
 
     # Generate and save the images
+<<<<<<< HEAD
     logging.info(f"Generating {args.num_images} images to dir {args.outdir}.")
     sample_size = metadata["model"]["sample_size"]
     with torch.no_grad():
@@ -129,3 +125,12 @@ if __name__ == "__main__":
                 args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
             )
     logging.info("Done.")
+=======
+    logging.info(f"Generating {num_images} images to dir {out_dir}.")
+    logging.debug(f"Using {num_batches} batches with size {batch_size}.")
+    for _ in tqdm(range(num_batches)):
+        images: torch.Tensor = diffuser.sample(model, batch_size)
+        for i, image in enumerate(images):
+            image_path = out_dir / f"{i}.png"
+            save_image(image, image_path)
+>>>>>>> update
