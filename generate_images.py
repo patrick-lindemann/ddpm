@@ -6,23 +6,9 @@ import pathlib
 import torch
 from tqdm import tqdm
 
-<<<<<<< HEAD
-from src.data import save_image, tensor_to_image
-from src.diffuser import GaussianDiffuser
-from src.model import DiffusionModel
-from src.paths import OUT_DIR
-from src.schedule import (
-    CosineScheduler,
-    LinearScheduler,
-    PolynomialScheduler,
-    Scheduler,
-    SigmoidScheduler,
-)
-=======
 from src.diffuser import GaussianDiffuser
 from src.image import save_image
 from src.model import DenoisingUNet2D
->>>>>>> update
 
 
 def get_args() -> argparse.Namespace:
@@ -110,22 +96,6 @@ if __name__ == "__main__":
     diffuser = GaussianDiffuser.load(run_dir).to(device)
 
     # Generate and save the images
-<<<<<<< HEAD
-    logging.info(f"Generating {args.num_images} images to dir {args.outdir}.")
-    sample_size = metadata["model"]["sample_size"]
-    with torch.no_grad():
-        for i in tqdm(range(args.num_images)):
-            for step in reversed(tqdm(range(0, num_steps), leave=False)):
-                noise = torch.randn((1, 3, sample_size, sample_size), device=device)
-                t = torch.full((1,), step, dtype=torch.long, device=device)
-                prediction = model(noise, t).sample
-                image = diffuser.sample(noise, t, prediction)
-                image = torch.clamp(image, -1.0, 1.0)
-            save_image(
-                args.outdir / f"{step}.png", image.squeeze(), transform=tensor_to_image
-            )
-    logging.info("Done.")
-=======
     logging.info(f"Generating {num_images} images to dir {out_dir}.")
     logging.debug(f"Using {num_batches} batches with size {batch_size}.")
     for _ in tqdm(range(num_batches)):
@@ -133,4 +103,3 @@ if __name__ == "__main__":
         for i, image in enumerate(images):
             image_path = out_dir / f"{i}.png"
             save_image(image, image_path)
->>>>>>> update

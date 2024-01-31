@@ -4,14 +4,8 @@ from typing import Callable, Optional
 import matplotlib.pyplot as plt
 import torch
 
-<<<<<<<< HEAD:src/data/plot.py
-from src.schedule import Scheduler
-
-from .transform import tensor_to_image
-========
 from .image import tensor_to_image
 from .schedule import Schedule
->>>>>>>> update:src/plot.py
 
 
 def plot_image(

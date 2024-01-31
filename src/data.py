@@ -1,6 +1,6 @@
 import os
 import pathlib
-from typing import Callable, List, Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import numpy
 import torch

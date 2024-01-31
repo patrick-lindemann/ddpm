@@ -10,25 +10,11 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 
-<<<<<<< HEAD
-from src.data import create_dataloader, load_dataset, plot_loss, split_dataset
-from src.diffuser import GaussianDiffuser
-from src.model import DiffusionModel
-from src.paths import OUT_DIR
-from src.schedule import (
-    CosineScheduler,
-    LinearScheduler,
-    PolynomialScheduler,
-    Scheduler,
-    SigmoidScheduler,
-)
-=======
 from src.data import create_dataloaders, load_dataset
 from src.diffuser import GaussianDiffuser
 from src.model import DenoisingUNet2D
 from src.paths import OUT_DIR
 from src.schedule import get_schedule
->>>>>>> update
 
 
 def get_args() -> argparse.Namespace:
