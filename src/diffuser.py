@@ -45,6 +45,7 @@ class GaussianDiffuser:
     def __init__(self, time_steps: int, schedule: Schedule) -> None:
         self.time_steps = time_steps
         self.schedule = schedule
+        self.device = torch.device("cpu")
         # Pre-calculate the diffusion parameters
         self._beta = schedule(torch.linspace(0.0, 1.0, time_steps))
         self._sqrt_beta = torch.sqrt(self._beta)

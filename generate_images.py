@@ -19,12 +19,6 @@ def get_args() -> argparse.Namespace:
         help="The path to the run.",
     )
     parser.add_argument(
-        "--model-path",
-        type=pathlib.Path,
-        help='The path to the model directory, which contains the files "config.json" and "weights.pt".',
-        default=None,
-    )
-    parser.add_argument(
         "num_images",
         type=int,
         help="The number of images to generate.",
@@ -46,12 +40,6 @@ def get_args() -> argparse.Namespace:
         type=pathlib.Path,
         help="The directory to save the results to. If not specified, the images are saved to <out_dir>/images/<run_name>.",
         default=None,
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        help="The batch size for generating images",
-        default=1,
     )
     parser.add_argument(
         "--device",
