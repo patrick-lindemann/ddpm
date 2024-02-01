@@ -1,23 +1,25 @@
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from torchvision import transforms
+from diffusers import UNet2DModel
+import torch.nn.functional as F
 import logging
 from datetime import datetime
-
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-import torch.nn.functional as F
-from diffusers import UNet2DModel
 from PIL import Image
-from torchvision import transforms
+import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
+)
 
 IMG_SIZE = 32
 TIME_STEPS = 1000
 
 
 class diffusion:
-    def __init__(self, timesteps, scheduler_type = None):
+    def __init__(self, timesteps, scheduler_type=None):
         betas = torch.linspace(0.0001, 0.02, timesteps)
 
         alphas = 1 - betas
@@ -28,7 +30,7 @@ class diffusion:
         sqrt_one_minus_alpha_hats = torch.sqrt(1 - alpha_hats)
 
         alpha_hats_prev = F.pad(alpha_hats[:-1], (1, 0), value=1.0)
-        posterior_variance = betas * (1. - alpha_hats_prev) / (1. - alpha_hats)
+        posterior_variance = betas * (1.0 - alpha_hats_prev) / (1.0 - alpha_hats)
 
         self.betas = betas
         self.alphas = alphas
@@ -58,9 +60,6 @@ class diffusion:
 
     @torch.no_grad()
     def sample(self, x_t, t, prediction):
-        x_t = x_t.cpu()
-        t = t.cpu()
-        prediction = prediction.cpu()
 
         betas_t = self.betas[t]
         sqrt_alphas_t = self.sqrt_alphas[t]
@@ -77,12 +76,23 @@ class diffusion:
             noise = torch.randn_like(x_t)
             posterior_variance_t = self.posterior_variance[t]
             return x_t_minus_one + torch.sqrt(posterior_variance_t) * noise
-        
+
     @torch.no_grad()
     def create_image(
-        self, model, img_size=32, timesteps=300, num_channels=3, show_process=False
+        self,
+        model,
+        num_img,
+        img_size=32,
+        timesteps=300,
+        num_channels=3,
+        show_process=False,
     ):
-        img = torch.randn((1, num_channels, img_size, img_size))
+        self.betas = self.betas.to(device)
+        self.sqrt_alphas = self.sqrt_alphas.to(device)
+        self.sqrt_one_minus_alpha_hats = self.sqrt_one_minus_alpha_hats.to(device)
+        self.posterior_variance = self.posterior_variance.to(device)
+
+        img = torch.randn((num_img, num_channels, img_size, img_size), device=device)
         num_images = 10
         stepsize = int(timesteps / num_images)
 
@@ -91,14 +101,11 @@ class diffusion:
             plt.axis("off")
 
         for i in range(0, timesteps)[::-1]:
-            t = torch.full((1,), i, dtype=torch.long)
-
-            img = img.to(device)
-            t = t.to(device)
+            t = torch.full((num_img,), i, dtype=torch.long, device=device)
 
             prediction = model(img, t).sample
 
-            img = self.sample(img, t, prediction)
+            img = self.sample(img, i, prediction)
 
             if show_process:
                 if i % stepsize == 0:
@@ -107,8 +114,8 @@ class diffusion:
 
         if show_process:
             plt.show()
-            fig.savefig(f'{datetime.now()}.png')
-        return img.cpu()[0]
+            fig.savefig(f"{datetime.now()}.png")
+        return img.cpu()
 
 
 transform = transforms.Compose(
@@ -129,16 +136,27 @@ undo_transform = transforms.Compose(
 
 diffuser = diffusion(timesteps=TIME_STEPS)
 
-model_new = UNet2DModel().from_pretrained("model_CIFAR10_checkpoint")
-model_new = model_new.to(device)
+model = UNet2DModel().from_pretrained("model_CIFAR10_checkpoint")
+model = model.to(device)
 
-for i in range(100):
-    img = diffuser.create_image(
-        model_new, img_size=IMG_SIZE, timesteps=TIME_STEPS, num_channels=3, show_process=False
+num_per_batch = 100
+
+for i in range(5):
+    images = diffuser.create_image(
+        model,
+        num_img=num_per_batch,
+        img_size=IMG_SIZE,
+        timesteps=TIME_STEPS,
+        num_channels=3,
+        show_process=False,
     )
-    img = torch.clamp(img, -1.0, 1.0)
-    img = undo_transform(img).squeeze()
-    image = Image.fromarray(img)
-    image.save(f"images/CIFAR10_{i}.png")
-    logging.info(f"Created CIFAR10_{i}.png")
 
+    images = torch.clamp(images, -1.0, 1.0)
+
+    for j in range(len(images)):
+        img = undo_transform(images[j]).squeeze()
+
+        image = Image.fromarray(img)
+        image.save(f"images/CIFAR10/CIFAR10_{i*num_per_batch+j}.png")
+
+    logging.info(f"Created CIFAR10 {i+1} {num_per_batch} batch")

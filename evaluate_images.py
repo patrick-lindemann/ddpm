@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     # Calculate the inception scores
     logging.info(f"Calculating inception score and writing it to {image_dir}.")
-    score, _ = calculate_inception_score(images, batch_size=10, device=device)
+    score, _ = calculate_inception_score(images, batch_size=100, device=device)
     with open(image_dir / "inception_score.txt", "w") as f:
         f.write(f"{score:.4f}")
     logging.info(f"Inception score: {score:.4f}")

@@ -1,23 +1,24 @@
-import logging
-import os
-from datetime import datetime
-
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
-import torch.nn.functional as F
+from torch import nn
+import numpy as np
+import matplotlib.pyplot as plt
+from torchvision import transforms
 import torchvision
 from diffusers import UNet2DModel
-from torch import nn
 from torch.optim import lr_scheduler
-from torchvision import transforms
+import os
+import logging
+from datetime import datetime
+import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG
+)
 
-IMG_SIZE = 128
-BATCH_SIZE = 32
-NO_EPOCHS = 200
+IMG_SIZE = 32
+BATCH_SIZE = 128
+NO_EPOCHS = 100
 TIME_STEPS = 1000
 
 
@@ -51,7 +52,7 @@ class diffusion:
         sqrt_one_minus_alpha_hats = torch.sqrt(1 - alpha_hats)
 
         alpha_hats_prev = F.pad(alpha_hats[:-1], (1, 0), value=1.0)
-        posterior_variance = betas * (1. - alpha_hats_prev) / (1. - alpha_hats)
+        posterior_variance = betas * (1.0 - alpha_hats_prev) / (1.0 - alpha_hats)
 
         self.betas = betas
         self.alphas = alphas
@@ -81,9 +82,6 @@ class diffusion:
 
     @torch.no_grad()
     def sample(self, x_t, t, prediction):
-        x_t = x_t.cpu()
-        t = t.cpu()
-        prediction = prediction.cpu()
 
         betas_t = self.betas[t]
         sqrt_alphas_t = self.sqrt_alphas[t]
@@ -100,12 +98,23 @@ class diffusion:
             noise = torch.randn_like(x_t)
             posterior_variance_t = self.posterior_variance[t]
             return x_t_minus_one + torch.sqrt(posterior_variance_t) * noise
-        
+
     @torch.no_grad()
     def create_image(
-        self, model, img_size=32, timesteps=300, num_channels=3, show_process=False
+        self,
+        model,
+        num_img,
+        img_size=32,
+        timesteps=300,
+        num_channels=3,
+        show_process=False,
     ):
-        img = torch.randn((1, num_channels, img_size, img_size))
+        self.betas = self.betas.to(device)
+        self.sqrt_alphas = self.sqrt_alphas.to(device)
+        self.sqrt_one_minus_alpha_hats = self.sqrt_one_minus_alpha_hats.to(device)
+        self.posterior_variance = self.posterior_variance.to(device)
+
+        img = torch.randn((num_img, num_channels, img_size, img_size), device=device)
         num_images = 10
         stepsize = int(timesteps / num_images)
 
@@ -114,14 +123,11 @@ class diffusion:
             plt.axis("off")
 
         for i in range(0, timesteps)[::-1]:
-            t = torch.full((1,), i, dtype=torch.long)
-
-            img = img.to(device)
-            t = t.to(device)
+            t = torch.full((num_img,), i, dtype=torch.long, device=device)
 
             prediction = model(img, t).sample
 
-            img = self.sample(img, t, prediction)
+            img = self.sample(img, i, prediction)
 
             if show_process:
                 if i % stepsize == 0:
@@ -130,8 +136,8 @@ class diffusion:
 
         if show_process:
             plt.show()
-            fig.savefig(f'{datetime.now()}.png')
-        return img.cpu()[0]
+            fig.savefig(f"{datetime.now()}.png")
+        return img.cpu()
 
 
 model = UNet2DModel(
@@ -139,7 +145,7 @@ model = UNet2DModel(
     in_channels=3,  # the number of input channels, 3 for RGB images
     out_channels=3,  # the number of output channels
     layers_per_block=2,  # how many ResNet layers to use per UNet block
-    # block_out_channels = (128, 256, 384, 512, 768),
+    # block_out_channels = (64, 256, 384, 512, 768),
     down_block_types=(
         "DownBlock2D",
         "AttnDownBlock2D",  # a ResNet downsampling block with spatial self-attention
@@ -157,29 +163,42 @@ model = UNet2DModel(
     dropout=0.1,
 )
 
-if os.path.exists('model_CIFAR10_checkpoint') and os.path.isdir('model_CIFAR10_checkpoint'):
+if os.path.exists("model_CIFAR10_checkpoint") and os.path.isdir(
+    "model_CIFAR10_checkpoint"
+):
     model = UNet2DModel().from_pretrained("model_CIFAR10_checkpoint")
 
 model.to(device)
 
 diffuser = diffusion(timesteps=TIME_STEPS)
-
+# =================================================================
 image_data = torchvision.datasets.CIFAR10(
-    "./data", download=True, transform=transform
+    "./data", download=True, transform=transform, train=True
 )
+subset_indices = [i for i in range(6000)]
+subset_dataset = torch.utils.data.Subset(image_data, subset_indices)
 dataloader = torch.utils.data.DataLoader(
-    image_data, batch_size=BATCH_SIZE, shuffle=True
+    subset_dataset, batch_size=BATCH_SIZE, shuffle=True
 )
-
+# =================================================================
+image_data_test = torchvision.datasets.CIFAR10(
+    "./data", download=True, transform=transform, train=False
+)
+subset_indices = [i for i in range(600)]
+subset_dataset_test = torch.utils.data.Subset(image_data_test, subset_indices)
+dataloader_test = torch.utils.data.DataLoader(
+    subset_dataset_test, batch_size=BATCH_SIZE, shuffle=True
+)
+# =================================================================
 loss_fn = nn.SmoothL1Loss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.8)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.85)
 
 logging.info("start training")
 best_result = 10
 for epoch in range(NO_EPOCHS):
     losses = []
-
+    model.train()
     for step, batch in enumerate(dataloader):
         optimizer.zero_grad()
 
@@ -198,14 +217,34 @@ for epoch in range(NO_EPOCHS):
         loss.backward()
         optimizer.step()
 
-
-    logging.info("====================================================================================")
-    logging.info(f"Epoch {epoch} | Loss: {sum(losses)/len(losses)} ")
-    # logging.info(f"Using {torch.cuda.mem_get_info()[0]/1000000000:.2f} GB")
+    logging.info(
+        "===================================================================================="
+    )
+    logging.info(f"Epoch {epoch} | Train Loss: {sum(losses)/len(losses)} ")
     # diffuser.create_image(model, img_size=IMG_SIZE, timesteps=TIME_STEPS, num_channels=3, show_process=True)
-    if(sum(losses)/len(losses) < best_result):
+    if sum(losses) / len(losses) < best_result:
         model.save_pretrained("model_CIFAR10_checkpoint", from_pt=True)
 
+    losses = []
+    model.eval()
+    with torch.no_grad():
+        for step, batch in enumerate(dataloader_test):
+            t = torch.randint(0, TIME_STEPS, (len(batch[0]),), device=device).long()
+
+            img_batch_noisy, noise_batch = diffuser.noise_schedule(
+                x_0=batch[0], t=t.cpu(), device=device
+            )
+
+            predicted_noise_batch = model(img_batch_noisy, t)
+
+            loss = loss_fn(predicted_noise_batch.sample, noise_batch)
+
+            losses.append(loss.item())
+
+        logging.info(
+            "===================================================================================="
+        )
+        logging.info(f"Epoch {epoch} |Val Loss: {sum(losses)/len(losses)} ")
 
     scheduler.step()
 
