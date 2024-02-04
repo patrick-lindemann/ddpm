@@ -14,7 +14,7 @@ This will install the dependencies listed in [requirements.txt](requirements.txt
 
 ## Training
 
-```     q
+```
 python3 train_denoiser.py <dataset_name> [parameters]
 ```
 
