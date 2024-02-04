@@ -24,6 +24,9 @@ from .paths import DATA_DIR
 
 
 AvailableDataset = Literal["cifar10", "mnist", "aircraft", "flower", "celeba"]
+"""
+The names of the available datasets.
+"""
 
 
 """Functions"""
@@ -35,6 +38,27 @@ def load_dataset(
     out_dir: pathlib.Path = DATA_DIR / "datasets",
     **kwargs,
 ) -> VisionDataset:
+    """Loads a dataset from torchvision.datasets and applies a set of transformations.
+
+    Parameters
+    ----------
+    name : AvailableDataset
+        The name of the dataset to load.
+    resize_to : Optional[int], optional
+        The size to which images should be resized, by default None
+    out_dir : pathlib.Path, optional
+        The directory to which the dataset should be downloaded, by default <data_dir> / "datasets"
+
+    Returns
+    -------
+    VisionDataset
+        The loaded dataset.
+
+    Raises
+    ------
+    ValueError
+        If an invalid dataset name is specified.
+    """
     dataset = None
     if name == "cifar10":
         dataset = CIFAR10
@@ -68,6 +92,30 @@ def create_dataloaders(
     seed: Optional[int] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[DataLoader, DataLoader]:
+    """Creates dataloaders for training and testing a model.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset.
+    train_size : float | int
+        The size of the training set, as a fraction of the dataset size or an integer number of samples.
+    test_size : float | int
+        The size of the test set, as a fraction of the dataset size or an integer number of samples.
+    batch_size : int, optional
+        The batch size with which the images are loaded, by default 16
+    shuffle : bool, optional
+        Whether to shuffle the dataset, by default True
+    seed : Optional[int], optional
+        The random seed to use for shuffling, by default None
+    device : torch.device, optional
+        The device on which to load the images onto, by default torch.device("cpu")
+
+    Returns
+    -------
+    Tuple[DataLoader, DataLoader]
+        The training and testing dataloaders.
+    """
     if train_size > 1.0:
         assert isinstance(train_size, int)
         assert 0 <= train_size <= len(dataset)

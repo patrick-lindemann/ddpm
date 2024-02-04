@@ -14,20 +14,38 @@ ScheduleType = Literal["linear", "cosine", "polynomial", "sigmoid"]
 
 
 CLIP_MIN = 0.000001
+"""
+The minimum value for noise variances. Must be greater than 0.
+"""
+
 CLIP_MAX = 0.999999
+"""
+The maximum value for noise variances. Must be less than 1.0 to avoid singularities when t approaches T.
+"""
 
 
 """Classes"""
 
 
 class Schedule(ABC):
-    """_summary_"""
+    """The base class for schedules."""
 
     start: float
     end: float
     tau: float | None
 
     def __init__(self, start: float, end: float, tau: float | None) -> None:
+        """Initialize the schedule.
+
+        Parameters
+        ----------
+        start : float
+            The start value of the schedule.
+        end : float
+            The end value of the schedule.
+        tau : float | None
+            The tau value of the schedule.
+        """
         self.start = start
         self.end = end
         self.tau = tau
@@ -39,28 +57,28 @@ class Schedule(ABC):
 
     @abstractmethod
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        """_summary_
+        """Apply the schedule to a tensor of time steps to get the noise variances beta.
 
         Parameters
         ----------
         t : torch.Tensor
-            _description_
+            A tensor of time steps.
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor]
-            _description_
+        torch.Tensor
+            A tensor containing the noise variances beta_t.
 
         Raises
         ------
         NotImplementedError
-            _description_
+            This method must be implemented by the derived classes.
         """
         raise NotImplementedError()
 
 
 class LinearSchedule(Schedule):
-    """__summary__"""
+    """A linear schedule"""
 
     def __init__(self, start: float = 0.0, end: float = 1.0) -> None:
         super().__init__(start, end, None)
@@ -75,8 +93,28 @@ class LinearSchedule(Schedule):
         return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
+class PolynomialSchedule(Schedule):
+    """A schedule using an (even-degree) polynomial function."""
+
+    def __init__(self, start: float = 0.0, end: float = 1.0, tau: float = 2.0) -> None:
+        super().__init__(start, end, tau)
+
+    @property
+    def type(self) -> str:
+        return "polynomial"
+
+    def __call__(self, t: torch.Tensor) -> torch.Tensor:
+        assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
+        f = lambda x: x**self.tau
+        v_start = f(self.start)
+        v_end = f(self.end)
+        v_t = f(t * (self.end - self.start) + self.start)
+        result = (v_t - v_start) / (v_end - v_start)
+        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
+
+
 class CosineSchedule(Schedule):
-    """_summary_"""
+    """A schedule using the cosine function, as proposed by [Nichol et. al (2021)](https://arxiv.org/pdf/2102.09672.pdf)."""
 
     def __init__(
         self,
@@ -100,28 +138,8 @@ class CosineSchedule(Schedule):
         return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
-class PolynomialSchedule(Schedule):
-    """__summary__"""
-
-    def __init__(self, start: float = 0.0, end: float = 1.0, tau: float = 2.0) -> None:
-        super().__init__(start, end, tau)
-
-    @property
-    def type(self) -> str:
-        return "polynomial"
-
-    def __call__(self, t: torch.Tensor) -> torch.Tensor:
-        assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
-        f = lambda x: x**self.tau
-        v_start = f(self.start)
-        v_end = f(self.end)
-        v_t = f(t * (self.end - self.start) + self.start)
-        result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
-
-
 class SigmoidSchedule(Schedule):
-    """_summary_"""
+    """A schedule using the sigmoid function, as proposed by [Ting Cheng (2023)](https://arxiv.org/pdf/2301.10972.pdf)."""
 
     def __init__(
         self,
@@ -149,22 +167,22 @@ class SigmoidSchedule(Schedule):
 
 
 def get_schedule(type: ScheduleType, **kwargs) -> Schedule:
-    """_summary_
+    """Initialize a schedule by name and parameters.
 
     Parameters
     ----------
     type : str
-        _description_
+        The name of the schedule.
 
     Returns
     -------
     Schedule
-        _description_
+        The initialized schedule.
 
     Raises
     ------
     ValueError
-        _description_
+        If the schedule name is invalid.
     """
     if "tau" in kwargs and (kwargs["tau"] is None or type == "linear"):
         del kwargs["tau"]

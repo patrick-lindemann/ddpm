@@ -12,13 +12,16 @@ from .schedule import Schedule, get_schedule
 
 
 CONFIG_FILE_NAME = "diffuser.config.json"
+"""
+The name of the file in which the diffuser configuration is saved.
+"""
 
 
 """Classes"""
 
 
 class GaussianDiffuser:
-    """_summary_"""
+    """A Gaussian diffusor that implements the forward and reverse kernel of the DDPM framework."""
 
     time_steps: int
     schedule: Schedule
@@ -36,6 +39,21 @@ class GaussianDiffuser:
     def load(
         cls, dir_path: pathlib.Path, time_steps: Optional[int] = None
     ) -> "GaussianDiffuser":
+        """Load a pre-configured diffuser from a directory containing a diffuser.config.json file.
+
+        Parameters
+        ----------
+        dir_path : pathlib.Path
+            The diffuser directory.
+        time_steps : Optional[int], optional
+            The number of timesteps, by default None. If not specified, the number
+            of timesteps will be loaded from the config file.
+
+        Returns
+        -------
+        GaussianDiffuser
+            The loaded diffuser.
+        """
         config_path = dir_path / CONFIG_FILE_NAME
         assert config_path.exists()
         with open(config_path, "r") as file:
@@ -47,6 +65,15 @@ class GaussianDiffuser:
 
     @torch.no_grad()
     def __init__(self, time_steps: int, schedule: Schedule) -> None:
+        """Initialize a Gaussian diffuser.
+
+        Parameters
+        ----------
+        time_steps : int
+            The number of time steps.
+        schedule : Schedule
+            The schedule to use for the forward diffusion process.
+        """
         self.time_steps = time_steps
         self.schedule = schedule
         self.device = torch.device("cpu")
@@ -65,15 +92,15 @@ class GaussianDiffuser:
     def forward(
         self, images: torch.Tensor, t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """_summary_
+        """Diffuse the input images using the forward kernel of the diffusion process.
 
         Parameters
         ----------
         images : torch.Tensor
-            The images to be diffused.
+            The images to diffuse with shape (N, 3, H, W).
         t : torch.Tensor
-            The time step of the diffusion for each image.
-            Must be in the range [0, num_steps].
+            A tensor with shape (N, 1)  containing the time step of the diffusion
+            for each image. Values must be in the range [0, T].
 
         Returns
         -------
@@ -102,11 +129,12 @@ class GaussianDiffuser:
         Parameters
         ----------
         images : torch.Tensor
-            The noised images.
+            The noised images with shape (N, 3, H, W).
         predicted_noise : torch.Tensor
-            The noise predicted by the denoising model.
+            The noises predicted by the denoising model with shape (N, 3, H, W).
         t : torch.Tensor
-            The time step for each image.
+            A tensor with shape (N, 1) containing the time step of the diffusion
+            for each image. Values must be in the range [0, T].
 
         Returns
         -------
@@ -129,21 +157,24 @@ class GaussianDiffuser:
     def sample(
         self, model: DenoisingUNet2D, N: int = 1, all_steps: bool = False
     ) -> torch.Tensor:
-        """__summary__
+        """Sample images from a learned distribution using a trained denoising model
+        and the reverse kernel of the diffusion process.
 
         Parameters
         ----------
         model : DenoisingUNet2D
-            _description_
+            The trained denoising model.
         N : int, optional
-            _description_, by default 1
+            The number of images to generate, by default 1
         all_steps : bool, optional
-            _description_, by default True
+            Whether to output all images of the diffusion process, by default False.
+            If False, only the final images will be returned.
 
         Returns
         -------
         torch.Tensor
-            _description_
+            A tensor containing the generated images with shape (N, 3, H, W) if all_steps
+            is False, or (T, N, 3, H, W) otherwise.
         """
         model.train(False)  # Set the model to evaluation mode
         image_size = model.sample_size
@@ -168,17 +199,17 @@ class GaussianDiffuser:
 
     @torch.no_grad()
     def to(self, device: torch.device) -> "GaussianDiffuser":
-        """_summary_
+        """Move the diffuser to a specified device.
 
         Parameters
         ----------
         device : torch.device
-            _description_
+            The device to move the diffuser to.
 
         Returns
         -------
         GaussianDiffuser
-            _description_
+            The moved diffuser.
         """
         self.device = device
         self._beta = self._beta.to(device)
@@ -195,6 +226,13 @@ class GaussianDiffuser:
         return self
 
     def save(self, dir_path: pathlib.Path) -> None:
+        """Save the diffuser to a directory.
+
+        Parameters
+        ----------
+        dir_path : pathlib.Path
+            The directory to save the diffuser to.
+        """
         config_path = dir_path / CONFIG_FILE_NAME
         config = {
             "time_steps": self.time_steps,

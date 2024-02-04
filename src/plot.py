@@ -12,14 +12,14 @@ def plot_image(
     image: torch.Tensor,
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
-    """_summary_
+    """Plot an image tensor using matplotlib.
 
     Parameters
     ----------
     image : torch.Tensor
-        _description_
+        The image tensor.
     file_path : Optional[pathlib.Path], optional
-        _description_, by default None
+        The plot output path, by default None. If not specified, the image will be displayed.
     """
     if file_path is not None:
         plt.imsave(file_path, tensor_to_image(image))
@@ -32,16 +32,16 @@ def plot_schedule(
     time_steps: int = 1000,
     file_path: Optional[pathlib.Path] = None,
 ):
-    """_summary_
+    """Plot a schedule using matplotlib.
 
     Parameters
     ----------
-    scheduler : Scheduler
-        _description_
+    schedule : Schedule
+        The schedule to plot.
     time_steps : int, optional
-        _description_, by default 1000
+        The number of time steps to plot the schedule for, by default 1000
     file_path : Optional[pathlib.Path], optional
-        _description_, by default None
+        The plot output path, by default None. If not specified, the plot will be displayed.
     """
     title = (
         f"{schedule.type.capitalize()} Scheduler\n s={schedule.start}, e={schedule.end}"
@@ -64,23 +64,23 @@ def plot_loss(
     losses: torch.Tensor,
     title: str,
     xlabel: str = "Epoch",
-    ylabel: str = "MSE Loss",
+    ylabel: str = "Loss",
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
-    """_summary_
+    """Plot a loss function over epochs.
 
     Parameters
     ----------
     losses : torch.Tensor
-        _description_
+        The loss values.
     title : str, optional
-        _description_
+        The title of the plot.
     xlabel : str, optional
-        _description_, by default "Epoch"
+        The label for the x-axis, by default "Epoch".
     ylabel : str, optional
-        _description_, by default "MSE Loss"
+        The label for the y axis, by default "Loss".
     file_path : Optional[pathlib.Path], optional
-        _description_, by default None
+        The plot output path, by default None. If not specified, the plot will be displayed.
     """
     plt.ylim(0, 1)
     plt.title(title)
@@ -99,27 +99,24 @@ def plot_denoising_results(
     image_restored: torch.Tensor,
     noise: torch.Tensor,
     noise_predicted: torch.Tensor,
-    transform: Callable = tensor_to_image,
     file_path: Optional[pathlib.Path] = None,
 ) -> None:
-    """_summary_
+    """Plot the results of an image denoising experiment.
 
     Parameters
     ----------
     t : torch.Tensor
-        _description_
-    imag_noised : torch.Tensor
-        _description_
+        The time step of the diffusion for each image.
+    image_noised : torch.Tensor
+        The noisy image tensor.
     image_restored : torch.Tensor
-        _description_
+        The restored image tensor.
     noise : torch.Tensor
-        _description_
+        The ground truth noise tensor.
     noise_predicted : torch.Tensor
-        _description_
-    transform : Callable, optional
-        _description_, by default reverse_transform_image
+        The predicted noise tensor.
     file_path : Optional[pathlib.Path], optional
-        _description_, by default None
+        The plot output path, by default None. If not specified, the plot will be displayed.
     """
     # Prepare the figure
     plt.figure(figsize=(30, 30))
@@ -130,19 +127,19 @@ def plot_denoising_results(
         ax.axis("off")
     # First subplot
     ax0 = axes[0, 0]
-    ax0.imshow(transform(image_noised.squeeze()))
+    ax0.imshow(tensor_to_image(image_noised.squeeze()))
     ax0.set_title(f"Noisy Image at Time ${t[0]}$", fontsize=10)
     # Second subplot
     ax1 = axes[0, 1]
-    ax1.imshow(transform(image_restored.squeeze()))
+    ax1.imshow(tensor_to_image(image_restored.squeeze()))
     ax1.set_title(f"Restored Image", fontsize=10)
     # Third subplot
     ax2 = axes[1, 0]
-    ax2.imshow(transform(noise.squeeze()))
+    ax2.imshow(tensor_to_image(noise.squeeze()))
     ax2.set_title(f"Ground Truth Noise", fontsize=10)
     # Fourth subplot
     ax3 = axes[1, 1]
-    ax3.imshow(transform(noise_predicted.squeeze()))
+    ax3.imshow(tensor_to_image(noise_predicted.squeeze()))
     ax3.set_title(f"Predicted Noise", fontsize=10)
     if file_path is not None:
         plt.savefig(file_path)
