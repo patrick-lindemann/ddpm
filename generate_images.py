@@ -16,7 +16,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "run_dir",
         type=pathlib.Path,
-        help="The path to the run.",
+        help="The path of the run directory.",
     )
     parser.add_argument(
         "num_images",
@@ -26,25 +26,31 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch-size",
         type=int,
-        help="The batch size for generating images.\nMust be a divisor of num_images.",
+        help="The batch size for generating images. Must be a divisor of num_images.",
+        default=None,
+    )
+    parser.add_argument(
+        "--time-steps",
+        type=int,
+        help="The number of time steps for the diffusion process. If not specified, the value from the run directory is used.",
         default=None,
     )
     parser.add_argument(
         "--seed",
         type=int,
-        help="The random seed to use.",
+        help="The random seed to use. If not specified, the randomized calculations will be non-deterministic.",
         default=None,
     )
     parser.add_argument(
         "--out-dir",
         type=pathlib.Path,
-        help="The directory to save the results to. If not specified, the images are saved to <out_dir>/images/<run_name>.",
+        help="The directory to save the results to. If not specified, the images are saved to <run_dir>/samples.",
         default=None,
     )
     parser.add_argument(
         "--device",
         type=str.lower,
-        help='The device to use.\nAllowed values: "CPU", "Cuda".',
+        help='The device to use.Allowed values: "cpu", "cuda".',
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
@@ -58,13 +64,12 @@ if __name__ == "__main__":
     args = get_args()
     num_images: int = args.num_images
     batch_size: int = args.batch_size if args.batch_size is not None else num_images
+    time_steps: int | None = args.time_steps
     num_batches = num_images // batch_size
     run_dir: pathlib.Path = args.run_dir
     run_name = run_dir.name
     seed: int = args.seed
-    out_dir = (
-        args.out_dir if args.out_dir is not None else run_dir / "samples" / "generated"
-    )
+    out_dir = args.out_dir if args.out_dir is not None else run_dir / "samples"
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -81,7 +86,7 @@ if __name__ == "__main__":
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
     model = DenoisingUNet2D.load(run_dir).to(device)
-    diffuser = GaussianDiffuser.load(run_dir).to(device)
+    diffuser = GaussianDiffuser.load(run_dir, time_steps=time_steps).to(device)
 
     # Generate and save the images
     logging.info(f"Generating {num_images} images to dir {out_dir}.")

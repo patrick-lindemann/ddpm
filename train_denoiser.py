@@ -22,18 +22,18 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "dataset",
         type=str.lower,
-        help='The name of the dataset.\nAllowed values: "CelebA", "MNIST", "FGVCAircraft", "CIFAR10", "LSUN".',
+        help='The name of the dataset. Allowed values: "cifar10", "mnist", "aircraft", "flower", "celeba".',
     )
     parser.add_argument(
         "--run-name",
         type=str,
-        help="The name of the experiment. If not provided, the name will be the timestamp.",
+        help="The name of the experiment. If not provided, the name will be generated automatically.",
         default=None,
     )
     parser.add_argument(
         "--image-size",
         type=int,
-        help="The size of the images in the dataset.",
+        help="The (square) sample size of the images. If the provided image size is different from the dataset's image size, the images will be up- or downsized accordingly.",
         default=32,
     )
     parser.add_argument(
@@ -51,13 +51,13 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--schedule-start",
         type=float,
-        help="The starting value for the schedule.",
+        help="The start value for the schedule.",
         default=0.0,
     )
     parser.add_argument(
         "--schedule-end",
         type=float,
-        help="The ending value for the schedule.",
+        help="The end value for the schedule.",
         default=1.0,
     )
     parser.add_argument(
@@ -110,7 +110,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
-        help="The random seed to use.",
+        help="The random seed to use. If not specified, the randomized calculations will be non-deterministic.",
         default=None,
     )
     parser.add_argument(
@@ -122,7 +122,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         type=str.lower,
-        help='The device to use.\nAllowed values: "CPU", "Cuda".',
+        help='The device to use.Allowed values: "cpu", "cuda".',
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument(
@@ -189,15 +189,15 @@ if __name__ == "__main__":
     )
     model = DenoisingUNet2D(image_size, dropout_rate=dropout_rate).to(device)
     diffuser = GaussianDiffuser(time_steps, schedule).to(device)
-    loss_func = torch.nn.MSELoss()
+    loss_func = torch.nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.99)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.85)
 
     # Prepare the output directory
     logging.info(f"Starting training for {epochs} epochs with batch size {batch_size}.")
-    train_losses: Dict[int, float] = {}
-    test_losses: Dict[int, float] = {}
-    learning_rates: Dict[int, float] = {}
+    train_losses = torch.zeros((epochs), device=device)
+    test_losses = torch.zeros((epochs), device=device)
+    learning_rates = torch.zeros((epochs), device=device)
     for epoch in tqdm(range(epochs)):
         train_loss = 0.0
         for step, batch in enumerate(tqdm(train_loader, desc="train", leave=False)):
@@ -240,9 +240,9 @@ if __name__ == "__main__":
         "test_size": len(test_loader) if do_validation else None,
         "epochs": epochs,
         "batch_size": batch_size,
-        "learning_rates": learning_rates,
-        "train_losses": train_losses,
-        "test_losses": test_losses,
+        "learning_rates": learning_rates.tolist(),
+        "train_losses": train_losses.tolist(),
+        "test_losses": test_losses.tolist(),
     }
     metadata_path = out_dir / "run.json"
     logging.info(f"Saving metadata to {metadata_path}.")

@@ -17,6 +17,12 @@ def get_args() -> argparse.Namespace:
         help="The path to folder containing the images to evaluate.",
     )
     parser.add_argument(
+        "--out-file",
+        type=pathlib.Path,
+        help="The file to save the inception score to. If not specified, the score is saved to <image_dir>/inception_score.txt.",
+        default=None,
+    )
+    parser.add_argument(
         "--device",
         type=str.lower,
         help='The device to use.\nAllowed values: "cpu", "cuda".',
@@ -32,6 +38,11 @@ if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
     image_dir: pathlib.Path = args.image_dir
+    out_file: pathlib.Path = (
+        args.out_file
+        if args.out_file is not None
+        else image_dir / "inception_score.txt"
+    )
     device = torch.device(args.device)
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -54,8 +65,8 @@ if __name__ == "__main__":
         images[i] = image
 
     # Calculate the inception scores
-    logging.info(f"Calculating inception score and writing it to {image_dir}.")
+    logging.info(f"Calculating inception score and writing it to {out_file}.")
     score, _ = calculate_inception_score(images, batch_size=100, device=device)
-    with open(image_dir / "inception_score.txt", "w") as f:
-        f.write(f"{score:.4f}")
+    with open(out_file, "w") as file:
+        file.write(f"{score:.4f}")
     logging.info(f"Inception score: {score:.4f}")

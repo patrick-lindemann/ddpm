@@ -1,6 +1,6 @@
 import json
 import pathlib
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from tqdm import tqdm
@@ -33,13 +33,17 @@ class GaussianDiffuser:
     _sqrt_one_minus_alpha_hat: torch.Tensor
 
     @classmethod
-    def load(cls, dir_path: pathlib.Path) -> "GaussianDiffuser":
+    def load(
+        cls, dir_path: pathlib.Path, time_steps: Optional[int] = None
+    ) -> "GaussianDiffuser":
         config_path = dir_path / CONFIG_FILE_NAME
         assert config_path.exists()
         with open(config_path, "r") as file:
             config = json.load(file)
         schedule = get_schedule(**config["schedule"])
-        return cls(config["time_steps"], schedule)
+        return cls(
+            time_steps if time_steps is not None else config["time_steps"], schedule
+        )
 
     @torch.no_grad()
     def __init__(self, time_steps: int, schedule: Schedule) -> None:
@@ -51,9 +55,11 @@ class GaussianDiffuser:
         self._sqrt_beta = torch.sqrt(self._beta)
         self._alpha = 1.0 - self._beta
         self._sqrt_alpha = torch.sqrt(self._alpha)
+        self._one_over_sqrt_alpha = 1.0 / self._sqrt_alpha
         self._alpha_hat = torch.cumprod(self._alpha, dim=0)
         self._sqrt_alpha_hat = torch.sqrt(self._alpha_hat)
         self._sqrt_one_minus_alpha_hat = torch.sqrt(1 - self._alpha_hat)
+        self._one_over_one_minus_alpha_hat = 1.0 / (1.0 - self._alpha_hat)
 
     @torch.no_grad()
     def forward(
@@ -76,9 +82,11 @@ class GaussianDiffuser:
         """
         N = images.shape[0]
         noise = torch.randn_like(images, device=self.device)
-        sqrt_alpha_t = self._sqrt_alpha_hat[t].reshape([N, 1, 1, 1])
-        sqrt_one_minus_alpha_t = self._sqrt_one_minus_alpha_hat[t].reshape([N, 1, 1, 1])
-        result = sqrt_alpha_t * images + sqrt_one_minus_alpha_t * noise
+        sqrt_alpha_hat_t = self._sqrt_alpha_hat[t].reshape((N, 1, 1, 1))
+        sqrt_one_minus_alpha_hat_t = self._sqrt_one_minus_alpha_hat[t].reshape(
+            (N, 1, 1, 1)
+        )
+        result = sqrt_alpha_hat_t * images + sqrt_one_minus_alpha_hat_t * noise
         result = torch.clamp(result, -1.0, 1.0)
         return result, noise
 
@@ -106,14 +114,14 @@ class GaussianDiffuser:
             The reconstructed images.
         """
         N = images.shape[0]
-        sqrt_alpha_t = self._sqrt_alpha[t].reshape(shape=[N, 1, 1, 1])
-        beta_t = self._beta[t].reshape(shape=[N, 1, 1, 1])
-        sqrt_one_minus_alpha_hat_t = self._sqrt_one_minus_alpha_hat[t].reshape(
-            shape=[N, 1, 1, 1]
+        beta_t = self._beta[t].reshape((N, 1, 1, 1))
+        one_over_sqrt_alpha_t = self._one_over_sqrt_alpha[t].reshape((N, 1, 1, 1))
+        one_over_sqrtl_one_minus_alpha_hat_t = self._one_over_one_minus_alpha_hat[
+            t
+        ].reshape((N, 1, 1, 1))
+        result = one_over_sqrt_alpha_t * (
+            images - (beta_t * predicted_noise * one_over_sqrtl_one_minus_alpha_hat_t)
         )
-        result = (
-            images - ((beta_t / sqrt_one_minus_alpha_hat_t) * predicted_noise)
-        ) / sqrt_alpha_t
         result = torch.clamp(result, -1.0, 1.0)
         return result
 
@@ -152,7 +160,7 @@ class GaussianDiffuser:
             if step > 0:
                 # Add random noise to the result
                 noise = torch.randn_like(images, device=self.device)
-                beta_sqrt_t = self._sqrt_beta[t].reshape(shape=[N, 1, 1, 1])
+                beta_sqrt_t = self._sqrt_beta[t].reshape(shape=(N, 1, 1, 1))
                 images += beta_sqrt_t * noise
             result[step] = images
         model.train(True)  # Reset the model to training mode
@@ -177,9 +185,13 @@ class GaussianDiffuser:
         self._sqrt_beta = self._sqrt_beta.to(device)
         self._alpha = self._alpha.to(device)
         self._sqrt_alpha = self._sqrt_alpha.to(device)
+        self._one_over_sqrt_alpha = self._one_over_sqrt_alpha.to(device)
         self._alpha_hat = self._alpha_hat.to(device)
         self._sqrt_alpha_hat = self._sqrt_alpha_hat.to(device)
         self._sqrt_one_minus_alpha_hat = self._sqrt_one_minus_alpha_hat.to(device)
+        self._one_over_one_minus_alpha_hat = self._one_over_one_minus_alpha_hat.to(
+            device
+        )
         return self
 
     def save(self, dir_path: pathlib.Path) -> None:

@@ -57,6 +57,11 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
+        "--export-all",
+        action="store_true",
+        help="Export the images at each time step.",
+    )
+    parser.add_argument(
         "--out-dir",
         type=pathlib.Path,
         help="The directory to save the results to.",
@@ -78,6 +83,7 @@ if __name__ == "__main__":
     schedule_start: int = args.schedule_start
     schedule_end: int = args.schedule_end
     schedule_tau: float | None = args.schedule_tau
+    export_all: bool = args.export_all
     out_dir: pathlib.Path = args.out_dir / schedule_name
     verbose: bool = args.verbose
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -111,10 +117,10 @@ if __name__ == "__main__":
     timeline = torch.cat(torch.unbind(noise_step_images, dim=0), dim=2)
 
     # Save the noise process results
-    logging.info(f'saving results to "{out_dir}".')
+    logging.info(f'Saving results to "{out_dir}".')
     save_image(timeline, out_dir / f"timeline.png")
-    for i, noised_image in enumerate(noise_step_images):
-        save_image(noised_image, out_dir / f"image-{i + 1}.png")
-    # plot_schedule(schedule, file_path=out_dir / "schedule-plot.svg")
+    if export_all:
+        for i, noised_image in enumerate(noise_step_images):
+            save_image(noised_image, out_dir / f"image-{i + 1}.png")
 
     logging.info("Done.")

@@ -10,6 +10,13 @@ import torch
 ScheduleType = Literal["linear", "cosine", "polynomial", "sigmoid"]
 
 
+"""Constants"""
+
+
+CLIP_MIN = 0.000001
+CLIP_MAX = 0.999999
+
+
 """Classes"""
 
 
@@ -55,11 +62,7 @@ class Schedule(ABC):
 class LinearSchedule(Schedule):
     """__summary__"""
 
-    def __init__(
-        self,
-        start: float = 0.0,
-        end: float = 1.0,
-    ) -> None:
+    def __init__(self, start: float = 0.0, end: float = 1.0) -> None:
         super().__init__(start, end, None)
 
     @property
@@ -68,7 +71,8 @@ class LinearSchedule(Schedule):
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
-        return t * (self.end - self.start) + self.start
+        result = (t - self.start) / (self.end - self.start)
+        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
 class CosineSchedule(Schedule):
@@ -93,7 +97,7 @@ class CosineSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, min=0.0, max=1.0)
+        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
 class PolynomialSchedule(Schedule):
@@ -113,7 +117,7 @@ class PolynomialSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, min=0.0, max=1.0)
+        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
 class SigmoidSchedule(Schedule):
@@ -138,7 +142,7 @@ class SigmoidSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, min=0.0, max=1.0)
+        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
 """Functions"""
