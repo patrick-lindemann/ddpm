@@ -93,8 +93,6 @@ if __name__ == "__main__":
     assert run_dir.exists()
     assert batch_size <= num_images
     assert num_images % batch_size == 0
-    if export_timeline:
-        assert timeline_stepsize < time_steps
 
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
