@@ -98,7 +98,9 @@ if __name__ == "__main__":
     if not out_dir.exists():
         os.makedirs(out_dir)
     for _ in tqdm(range(num_batches)):
-        images: torch.Tensor = diffuser.sample(model, batch_size, all_steps=show_process)
+        images: torch.Tensor = diffuser.sample(
+            model, batch_size, all_steps=show_process
+        )
         for i, image in enumerate(images):
             image_index = i * num_batches
             if show_process:
@@ -109,4 +111,3 @@ if __name__ == "__main__":
             else:
                 image = images[i]
                 save_image(image, out_dir / f"{image_index}.png")
-            

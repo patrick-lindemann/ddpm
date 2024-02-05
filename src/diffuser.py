@@ -3,8 +3,8 @@ import pathlib
 from typing import Optional, Tuple
 
 import torch
-from tqdm import tqdm
 from torch.nn import functional
+from tqdm import tqdm
 
 from .model import DenoisingUNet2D
 from .schedule import Schedule, get_schedule
@@ -197,10 +197,12 @@ class GaussianDiffuser:
             if step > 0:
                 # Add random noise to the result
                 noise = torch.randn_like(images, device=self.device)
-                sqrt_posterior_variance_t = self._sqrt_posterior_variance[t].reshape((N, 1, 1, 1))
+                sqrt_posterior_variance_t = self._sqrt_posterior_variance[t].reshape(
+                    (N, 1, 1, 1)
+                )
                 images += sqrt_posterior_variance_t * noise
                 images = torch.clamp(images, -1.0, 1.0)
-            result[step] = images
+            result[:, step] = images
         model.train(True)  # Reset the model to training mode
         return result if all_steps else result[-1]
 

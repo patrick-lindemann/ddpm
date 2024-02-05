@@ -174,3 +174,6 @@ pml.sif
 
 # Resources
 resources
+
+# Misc
+.DS_Store
