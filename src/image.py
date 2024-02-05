@@ -97,15 +97,20 @@ def save_image(image: torch.Tensor, file_path: pathlib.Path) -> None:
     image_transformed.save(file_path)
 
 
-def save_timeline(images: torch.Tensor, file_path: pathlib.Path) -> None:
-    """Save a torch.Tensor timeline to to an image file
+def save_timeline(
+    images: torch.Tensor, file_path: pathlib.Path, stepsize: int = 1
+) -> None:
+    """Save a torch.Tensor timeline to an image file.
 
     Parameters
     ----------
     images : torch.Tensor
-        The timeline as a torch.Tensor.
+        The timeline as a torch.Tensor with shape (N, T, C, H, W)
     file_path : pathlib.Path
         The output file path
+    stepsize: int
+        The step size for the timeline. If set to k, every k-th image is saved.
     """
     timeline = torch.cat(torch.unbind(images, dim=0), dim=2)
+    timeline = timeline[:, ::stepsize]
     save_image(timeline, file_path)

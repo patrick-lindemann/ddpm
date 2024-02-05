@@ -57,6 +57,12 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
+        "--timeline-stepsize",
+        type=int,
+        help="The stepsize for exporting the timeline. Only applicable if --export-timeline is set.",
+        default=1,
+    )
+    parser.add_argument(
         "--export-all",
         action="store_true",
         help="Export the images at each time step.",
@@ -83,6 +89,7 @@ if __name__ == "__main__":
     schedule_start: int = args.schedule_start
     schedule_end: int = args.schedule_end
     schedule_tau: float | None = args.schedule_tau
+    timeline_stepsize = args.timeline_stepsize
     export_all: bool = args.export_all
     out_dir: pathlib.Path = args.out_dir / schedule_name
     verbose: bool = args.verbose
@@ -117,7 +124,7 @@ if __name__ == "__main__":
 
     # Save the noise process results
     logging.info(f'Saving results to "{out_dir}".')
-    save_timeline(noise_step_images, out_dir / f"timeline.png")
+    save_timeline(noise_step_images, out_dir / f"timeline.png", timeline_stepsize)
     if export_all:
         for i, noised_image in enumerate(noise_step_images):
             save_image(noised_image, out_dir / f"image-{i + 1}.png")

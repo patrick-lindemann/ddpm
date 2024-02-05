@@ -36,9 +36,15 @@ def get_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
-        "--show-process",
+        "--export-timeline",
         action="store_true",
         help="Show the process of the image generation by exporting the timelines.",
+    )
+    parser.add_argument(
+        "--timeline-stepsize",
+        type=int,
+        help="The stepsize for exporting the timeline. Only applicable if --export-timeline is set.",
+        default=1,
     )
     parser.add_argument(
         "--seed",
@@ -70,7 +76,8 @@ if __name__ == "__main__":
     num_images: int = args.num_images
     batch_size: int = args.batch_size if args.batch_size is not None else num_images
     time_steps: int | None = args.time_steps
-    show_process: bool = args.show_process
+    export_timeline: bool = args.export_timeline
+    timeline_stepsize: int = args.timeline_stepsize
     num_batches = num_images // batch_size
     run_dir: pathlib.Path = args.run_dir
     run_name = run_dir.name
@@ -86,6 +93,8 @@ if __name__ == "__main__":
     assert run_dir.exists()
     assert batch_size <= num_images
     assert num_images % batch_size == 0
+    if export_timeline:
+        assert timeline_stepsize < time_steps
 
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
@@ -99,14 +108,18 @@ if __name__ == "__main__":
         os.makedirs(out_dir)
     for _ in tqdm(range(num_batches)):
         images: torch.Tensor = diffuser.sample(
-            model, batch_size, all_steps=show_process
+            model, batch_size, all_steps=export_timeline
         )
         for i, image in enumerate(images):
             image_index = i * num_batches
-            if show_process:
+            if export_timeline:
                 timeline = images[i]
                 image = timeline[-1]
-                save_timeline(timeline, out_dir / f"{image_index}_timeline.png")
+                save_timeline(
+                    timeline,
+                    out_dir / f"{image_index}_timeline.png",
+                    args.timeline_stepsize,
+                )
                 save_image(image, out_dir / f"{image_index}.png")
             else:
                 image = images[i]
