@@ -112,12 +112,12 @@ if __name__ == "__main__":
             image_index = i * num_batches
             if export_timeline:
                 timeline = images[i]
-                image = timeline[-1]
                 save_timeline(
                     timeline,
                     out_dir / f"{image_index}_timeline.png",
-                    args.timeline_stepsize,
+                    timeline_stepsize,
                 )
+                image = timeline[-1]
                 save_image(image, out_dir / f"{image_index}.png")
             else:
                 image = images[i]

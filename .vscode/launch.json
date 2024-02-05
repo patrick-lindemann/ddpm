@@ -14,7 +14,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/apply_noise.py",
             "console": "integratedTerminal",
-            "args": ["data/images/dog.png", "--schedule", "cosine"],
+            "args": ["data/images/dog.png", "--schedule", "cosine", "--timeline-stepsize", "2"],
             "justMyCode": true
         },
         {
