@@ -169,5 +169,8 @@ cython_debug/
 # z log files
 z.*
 
+# Cluster
+pml.sif
+
 # Resources
 resources

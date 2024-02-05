@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from src.diffuser import GaussianDiffuser
-from src.image import save_image
+from src.image import save_image, save_timeline
 from src.model import DenoisingUNet2D
 
 
@@ -34,6 +34,11 @@ def get_args() -> argparse.Namespace:
         type=int,
         help="The number of time steps for the diffusion process. If not specified, the value from the run directory is used.",
         default=None,
+    )
+    parser.add_argument(
+        "--show-process",
+        action="store_true",
+        help="Show the process of the image generation by exporting the timelines.",
     )
     parser.add_argument(
         "--seed",
@@ -65,6 +70,7 @@ if __name__ == "__main__":
     num_images: int = args.num_images
     batch_size: int = args.batch_size if args.batch_size is not None else num_images
     time_steps: int | None = args.time_steps
+    show_process: bool = args.show_process
     num_batches = num_images // batch_size
     run_dir: pathlib.Path = args.run_dir
     run_name = run_dir.name
@@ -80,8 +86,6 @@ if __name__ == "__main__":
     assert run_dir.exists()
     assert batch_size <= num_images
     assert num_images % batch_size == 0
-    if not out_dir.exists():
-        os.makedirs(out_dir)
 
     # Prepare the diffuser
     logging.info(f'Loading model from "{run_dir}".')
@@ -91,8 +95,18 @@ if __name__ == "__main__":
     # Generate and save the images
     logging.info(f"Generating {num_images} images to dir {out_dir}.")
     logging.debug(f"Using {num_batches} batches with size {batch_size}.")
+    if not out_dir.exists():
+        os.makedirs(out_dir)
     for _ in tqdm(range(num_batches)):
-        images: torch.Tensor = diffuser.sample(model, batch_size)
+        images: torch.Tensor = diffuser.sample(model, batch_size, all_steps=show_process)
         for i, image in enumerate(images):
-            image_path = out_dir / f"{i}.png"
-            save_image(image, image_path)
+            image_index = i * num_batches
+            if show_process:
+                timeline = images[i]
+                image = timeline[-1]
+                save_timeline(timeline, out_dir / f"{image_index}_timeline.png")
+                save_image(image, out_dir / f"{image_index}.png")
+            else:
+                image = images[i]
+                save_image(image, out_dir / f"{image_index}.png")
+            

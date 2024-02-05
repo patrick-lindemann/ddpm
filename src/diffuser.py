@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 import torch
 from tqdm import tqdm
+from torch.nn import functional
 
 from .model import DenoisingUNet2D
 from .schedule import Schedule, get_schedule
@@ -28,12 +29,13 @@ class GaussianDiffuser:
     device: torch.device
 
     _beta: torch.Tensor
-    _sqrt_beta: torch.Tensor
     _alpha: torch.Tensor
     _sqrt_alpha: torch.Tensor
     _alpha_hat: torch.Tensor
     _sqrt_alpha_hat: torch.Tensor
     _sqrt_one_minus_alpha_hat: torch.Tensor
+    _posterior_variance: torch.Tensor
+    _sqrt_posterior_variance: torch.Tensor
 
     @classmethod
     def load(
@@ -79,14 +81,18 @@ class GaussianDiffuser:
         self.device = torch.device("cpu")
         # Pre-calculate the diffusion parameters
         self._beta = schedule(torch.linspace(0.0, 1.0, time_steps))
-        self._sqrt_beta = torch.sqrt(self._beta)
         self._alpha = 1.0 - self._beta
         self._sqrt_alpha = torch.sqrt(self._alpha)
         self._one_over_sqrt_alpha = 1.0 / self._sqrt_alpha
-        self._alpha_hat = torch.cumprod(self._alpha, dim=0)
+        self._alpha_hat = torch.cumprod(self._alpha, axis=0)
         self._sqrt_alpha_hat = torch.sqrt(self._alpha_hat)
         self._sqrt_one_minus_alpha_hat = torch.sqrt(1 - self._alpha_hat)
         self._one_over_one_minus_alpha_hat = 1.0 / (1.0 - self._alpha_hat)
+        self._posterior_variance = self._beta * (
+            (1.0 - functional.pad(self._alpha_hat[:-1], (1, 0), value=1.0))
+            * self._one_over_one_minus_alpha_hat
+        )
+        self._sqrt_posterior_variance = torch.sqrt(self._posterior_variance)
 
     @torch.no_grad()
     def forward(
@@ -144,11 +150,11 @@ class GaussianDiffuser:
         N = images.shape[0]
         beta_t = self._beta[t].reshape((N, 1, 1, 1))
         one_over_sqrt_alpha_t = self._one_over_sqrt_alpha[t].reshape((N, 1, 1, 1))
-        one_over_sqrtl_one_minus_alpha_hat_t = self._one_over_one_minus_alpha_hat[
+        one_over_sqrt_one_minus_alpha_hat_t = self._one_over_one_minus_alpha_hat[
             t
         ].reshape((N, 1, 1, 1))
         result = one_over_sqrt_alpha_t * (
-            images - (beta_t * predicted_noise * one_over_sqrtl_one_minus_alpha_hat_t)
+            images - (beta_t * predicted_noise * one_over_sqrt_one_minus_alpha_hat_t)
         )
         result = torch.clamp(result, -1.0, 1.0)
         return result
@@ -174,12 +180,12 @@ class GaussianDiffuser:
         -------
         torch.Tensor
             A tensor containing the generated images with shape (N, 3, H, W) if all_steps
-            is False, or (T, N, 3, H, W) otherwise.
+            is False, or (N, T, 3, H, W) otherwise.
         """
         model.train(False)  # Set the model to evaluation mode
         image_size = model.sample_size
         result = torch.zeros(
-            (self.time_steps, N, 3, image_size, image_size), device=self.device
+            (N, self.time_steps, 3, image_size, image_size), device=self.device
         )
         images = torch.randn((N, 3, image_size, image_size), device=self.device)
         for step in reversed(
@@ -191,8 +197,9 @@ class GaussianDiffuser:
             if step > 0:
                 # Add random noise to the result
                 noise = torch.randn_like(images, device=self.device)
-                beta_sqrt_t = self._sqrt_beta[t].reshape(shape=(N, 1, 1, 1))
-                images += beta_sqrt_t * noise
+                sqrt_posterior_variance_t = self._sqrt_posterior_variance[t].reshape((N, 1, 1, 1))
+                images += sqrt_posterior_variance_t * noise
+                images = torch.clamp(images, -1.0, 1.0)
             result[step] = images
         model.train(True)  # Reset the model to training mode
         return result if all_steps else result[-1]
@@ -213,7 +220,6 @@ class GaussianDiffuser:
         """
         self.device = device
         self._beta = self._beta.to(device)
-        self._sqrt_beta = self._sqrt_beta.to(device)
         self._alpha = self._alpha.to(device)
         self._sqrt_alpha = self._sqrt_alpha.to(device)
         self._one_over_sqrt_alpha = self._one_over_sqrt_alpha.to(device)
@@ -223,6 +229,8 @@ class GaussianDiffuser:
         self._one_over_one_minus_alpha_hat = self._one_over_one_minus_alpha_hat.to(
             device
         )
+        self._posterior_variance = self._posterior_variance.to(device)
+        self._sqrt_posterior_variance = self._sqrt_posterior_variance.to(device)
         return self
 
     def save(self, dir_path: pathlib.Path) -> None:

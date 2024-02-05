@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from src.diffuser import GaussianDiffuser
-from src.image import load_image, save_image
+from src.image import load_image, save_image, save_timeline
 from src.paths import OUT_DIR
 from src.plot import plot_schedule
 from src.schedule import get_schedule
@@ -114,11 +114,10 @@ if __name__ == "__main__":
     for t in tqdm(range(time_steps)):
         noised_image, _ = diffuser.forward(image, torch.tensor([t]))
         noise_step_images[t] = noised_image.squeeze()
-    timeline = torch.cat(torch.unbind(noise_step_images, dim=0), dim=2)
 
     # Save the noise process results
     logging.info(f'Saving results to "{out_dir}".')
-    save_image(timeline, out_dir / f"timeline.png")
+    save_timeline(noise_step_images, out_dir / f"timeline.png")
     if export_all:
         for i, noised_image in enumerate(noise_step_images):
             save_image(noised_image, out_dir / f"image-{i + 1}.png")

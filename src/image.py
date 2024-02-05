@@ -72,7 +72,7 @@ def load_image(
     image = PIL.Image.open(file_path)
     transform = (
         transforms.Compose(
-            [image_to_tensor, transforms.Resize(resize_to, antialias=True)]
+            [transforms.Resize(resize_to, antialias=True), image_to_tensor]
         )
         if resize_to is not None
         else image_to_tensor
@@ -95,3 +95,17 @@ def save_image(image: torch.Tensor, file_path: pathlib.Path) -> None:
     transform = transforms.Compose([tensor_to_image, transforms.ToPILImage()])
     image_transformed: PIL.Image.Image = transform(image)
     image_transformed.save(file_path)
+
+
+def save_timeline(images: torch.Tensor, file_path: pathlib.Path) -> None:
+    """Save a torch.Tensor timeline to to an image file
+
+    Parameters
+    ----------
+    images : torch.Tensor
+        The timeline as a torch.Tensor.
+    file_path : pathlib.Path
+        The output file path
+    """
+    timeline = torch.cat(torch.unbind(images, dim=0), dim=2)
+    save_image(timeline, file_path)

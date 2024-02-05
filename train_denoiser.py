@@ -171,8 +171,6 @@ if __name__ == "__main__":
     test_size = dataset_size - train_size
     if do_validation:
         assert test_size > 0
-    if not out_dir.exists():
-        os.makedirs(out_dir)
 
     # Prepare the model and training
     train_loader, test_loader = create_dataloaders(
@@ -228,6 +226,8 @@ if __name__ == "__main__":
 
     # Export the model and diffuser
     logging.info(f"Saving model and diffuser to {out_dir}.")
+    if not out_dir.exists():
+        os.makedirs(out_dir)
     model.save(out_dir)
     diffuser.save(out_dir)
 
