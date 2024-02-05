@@ -15,7 +15,7 @@ This will install the dependencies listed in [requirements.txt](requirements.txt
 ## Training
 
 ```
-python3 train_denoiser.py <dataset_name> [parameters]
+python3 train_denoiser.py <dataset_name> [options]
 ```
 
 Train the denoising module on one of the provided datasets, i.e.
@@ -55,7 +55,7 @@ Train the denoising module on one of the provided datasets, i.e.
 ## Image Generation
 
 ```
-python3 generate_images.py <run_dir> <image_count> [parameters]
+python3 generate_images.py <run_dir> <image_count> [options]
 ```
 
 Generate images using a trained denoiser. The routine takes the path of a run created by `train_denoiser.py` and the number of images to generate. The resulting images are saved to the specified output directory.
@@ -84,7 +84,7 @@ Generate images using a trained denoiser. The routine takes the path of a run cr
 ## Image Evaluation
 
 ```
-python3 evaluate_images.py <image_dir> [parameters]
+python3 evaluate_images.py <image_dir> [options]
 ```
 
 Calculate the [Inception Score](https://en.wikipedia.org/wiki/Inception_score) to evaluate the quality of generated images using the InceptionV3 model. The routine takes the path of a directory containing the generated images and saves their resulting score to `inception_score.txt` in the same directory.
@@ -106,7 +106,7 @@ Calculate the [Inception Score](https://en.wikipedia.org/wiki/Inception_score) t
 ## Noise Schedule Visualization
 
 ```
-python3 apply_noise.py <image_path> [parameters]
+python3 apply_noise.py <image_path> [options]
 ```
 
 This routine visualizes the forward diffusion process. It takes an image as parameter (e.g. one of the example images in `data/images`) and applies gradual noise according to the pre-configured schedule.
@@ -126,7 +126,7 @@ This routine visualizes the forward diffusion process. It takes an image as para
 | `--schedule-tau` | The tau value for the schedule | float | None | Only applicable for polynimial, cosine and sigmoid schedules |
 | `--image-size` | The (quadratic) size to scale the image to | int | 128 | |
 | `--outdir` | The directory to save the results to | pathlib.Path | `./out/forward/<schedule>`| |
-| `--device` | The device to use | torch.Device | "cpu" | |
+| `--device` | The device to use | torch.Device | "cpu" | If not specified, "cuda" will be used if it is available. |
 | `--verbose` | Enable verbose logging | bool | False | |
 
 
