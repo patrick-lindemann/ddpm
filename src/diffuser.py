@@ -190,9 +190,8 @@ class GaussianDiffuser:
             (num_images, 3, image_size, image_size), device=self.device
         )
         result[:, 0] = images
-        for step in tqdm(
-            reversed(range(self.time_steps)), desc="sampling", leave=False
-        ):
+        for i in tqdm(range(self.time_steps), desc="sampling", leave=False):
+            step = self.time_steps - (i + 1)
             t = torch.full((num_images,), step, dtype=torch.long, device=self.device)
             predicted_noise = model(images, t).sample
             images = self.reverse(images, predicted_noise, t)
@@ -203,7 +202,7 @@ class GaussianDiffuser:
                     (num_images, 1, 1, 1)
                 )
                 images += sqrt_posterior_variance_t * noise
-            result[:, step + 1] = images
+            result[:, i + 1] = images
         model.train(True)  # Reset the model to training mode
         return result if all_steps else result[-1]
 
