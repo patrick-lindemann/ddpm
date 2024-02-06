@@ -14,7 +14,15 @@
             "request": "launch",
             "program": "${workspaceFolder}/apply_noise.py",
             "console": "integratedTerminal",
-            "args": ["data/images/dog.png", "--schedule", "cosine", "--timeline-stepsize", "2"],
+            "args": [
+                "data/images/dog.png",
+                "--schedule",
+                "linear",
+                "--schedule-start",
+                "0.0001",
+                "--schedule-end",
+                "0.02"
+            ],
             "justMyCode": true
         },
         {
@@ -40,7 +48,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/generate_images.py",
             "console": "integratedTerminal",
-            "args": ["out/train/1706115356_cifar10_cosine"],
+            "args": ["out/runs/nguyen-weights", "5", "--time-steps", "10"],
             "justMyCode": true
         },
         {
