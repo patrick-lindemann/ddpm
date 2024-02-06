@@ -4,7 +4,6 @@ import logging
 import os
 import pathlib
 import time
-from typing import Dict
 
 import torch
 import torch.utils.data
@@ -45,7 +44,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--schedule",
         type=str.lower,
-        help='The schedule to use.\nAllowed values: "linear", "polynomial", "cosine", "exponential".',
+        help='The schedule to use.Allowed values: "linear", "polynomial", "cosine", "exponential".',
         default="linear",
     )
     parser.add_argument(
@@ -96,6 +95,12 @@ def get_args() -> argparse.Namespace:
         default=16,
     )
     parser.add_argument(
+        "--loss-function",
+        type=str.lower,
+        help='The loss function to use. Allowed values: "l1", "l2", "smoothl1',
+        default="l2",
+    )
+    parser.add_argument(
         "--learning-rate",
         type=float,
         help="The learning rate for the optimizer.",
@@ -131,6 +136,16 @@ def get_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_loss_func(name: str) -> torch.nn.Module:
+    if name == "l1":
+        return torch.nn.L1Loss()
+    elif name == "l2":
+        return torch.nn.MSELoss()
+    else:
+        return torch.nn.SmoothL1Loss()
+    raise ValueError(f"Invalid loss function name: {name}")
+
+
 if __name__ == "__main__":
     # Parse the arguments
     args = get_args()
@@ -151,6 +166,7 @@ if __name__ == "__main__":
     subset_size: int | None = args.subset_size
     train_split: float = args.train_split
     batch_size: int = args.batch_size
+    loss_name: str = args.loss_function
     learning_rate: float = args.learning_rate
     dropout_rate: float = args.dropout_rate
     seed: int = args.seed
@@ -171,6 +187,7 @@ if __name__ == "__main__":
     test_size = dataset_size - train_size
     if do_validation:
         assert test_size > 0
+    assert loss_name in ["l1", "l2", "smoothl1"]
 
     # Prepare the model and training
     train_loader, test_loader = create_dataloaders(
@@ -187,7 +204,7 @@ if __name__ == "__main__":
     )
     model = DenoisingUNet2D(image_size, dropout_rate=dropout_rate).to(device)
     diffuser = GaussianDiffuser(time_steps, schedule).to(device)
-    loss_func = torch.nn.SmoothL1Loss()
+    loss_func = get_loss_func(loss_name)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.85)
 
@@ -240,6 +257,7 @@ if __name__ == "__main__":
         "test_size": len(test_loader) if do_validation else None,
         "epochs": epochs,
         "batch_size": batch_size,
+        "loss_function": loss_name,
         "learning_rates": learning_rates.tolist(),
         "train_losses": train_losses.tolist(),
         "test_losses": test_losses.tolist(),
