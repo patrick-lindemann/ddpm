@@ -77,7 +77,7 @@ class DenoisingUNet2D(UNet2DModel):
         with open(config_path, "r") as file:
             config = json.load(file)
         model = cls(**config)
-        model.load_state_dict(torch.load(weights_path))
+        model.load_state_dict(torch.load(weights_path, map_location="cpu"))
         return model
 
     def __init__(
