@@ -130,9 +130,11 @@ class CosineSchedule(Schedule):
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
-        result = self.start + 0.5 * (1.0 - torch.cos(t * numpy.pi)) * (
-            self.end - self.start
-        )
+        f = lambda x: numpy.cos(x * numpy.pi / 2) ** (2 * self.tau)
+        v_start = f(self.start)
+        v_end = f(self.end)
+        v_t = f(t * (self.end - self.start) + self.start)
+        result = (v_t - v_start) / (v_end - v_start)
         return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
