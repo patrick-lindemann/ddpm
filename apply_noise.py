@@ -9,7 +9,6 @@ from tqdm import tqdm
 from src.diffuser import GaussianDiffuser
 from src.image import load_image, save_image, save_timeline
 from src.paths import OUT_DIR
-from src.plot import plot_schedule
 from src.schedule import get_schedule
 
 
@@ -111,7 +110,7 @@ if __name__ == "__main__":
     # Load the image
     logging.info(f'Loading image from "{image_path}"')
     image = load_image(image_path, resize_to=image_size)
-    image = image.reshape(shape=[1, *image.shape])
+    image = image.unsqueeze(0)
 
     # Apply noise to the image incrementally
     logging.info(
