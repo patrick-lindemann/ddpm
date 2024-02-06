@@ -10,7 +10,7 @@ script_dir=$(dirname "$0")
 
 apptainer run --nv $script_dir/../pml.sif \
     python3 train_denoiser.py cifar10 \
-    --run--name "cifar10-cosine[0,1,1]" \
+    --run-name "cifar10-cosine[0,1,1]" \
     --image-size 32 \
     --time-steps 1000 \
     --epochs 100 \
