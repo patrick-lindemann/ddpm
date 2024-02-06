@@ -15,7 +15,12 @@ ScheduleType = Literal["linear", "cosine", "polynomial", "sigmoid"]
 
 CLIP_MIN = 0.00001
 """
-The minimum value for noise variances, which must be greater than zero to avoid singularities.
+The minimum value for noise variances, which must be greater than zero to avoid numerical issues.
+"""
+
+CLIP_MAX = 0.99999
+"""
+The maximum value for noise variances, which must be less than one to avoid numerical issues.
 """
 
 
@@ -85,7 +90,7 @@ class LinearSchedule(Schedule):
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
         result = self.start + t * (self.end - self.start)
-        return torch.clip(result, CLIP_MIN)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class PolynomialSchedule(Schedule):
@@ -105,7 +110,7 @@ class PolynomialSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clip(result, CLIP_MIN)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class CosineSchedule(Schedule):
@@ -128,7 +133,7 @@ class CosineSchedule(Schedule):
         result = self.start + 0.5 * (1.0 - torch.cos(t * numpy.pi)) * (
             self.end - self.start
         )
-        return torch.clip(result, CLIP_MIN)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class SigmoidSchedule(Schedule):
@@ -153,7 +158,7 @@ class SigmoidSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clip(result, CLIP_MIN)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 """Functions"""
