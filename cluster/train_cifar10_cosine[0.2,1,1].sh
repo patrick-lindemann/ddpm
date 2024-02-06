@@ -6,7 +6,9 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --output=logs/job-%j.out
 
-apptainer run --nv pml.dif \
+script_dir=$(dirname "$0")
+
+apptainer run --nv $script_dir/../pml.sif \
     python3 train_denoiser.py cifar10 \
     --run--name "cifar10-cosine[0.2,1,1]" \
     --image-size 32 \
