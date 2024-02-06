@@ -153,7 +153,7 @@ if __name__ == "__main__":
     run_name: str = (
         args.run_name
         if args.run_name is not None
-        else f"{int(time.time())}-{dataset_name}"
+        else f"{int(time.time())}_{dataset_name}"
     )
     image_size: int = args.image_size
     time_steps: int = args.time_steps

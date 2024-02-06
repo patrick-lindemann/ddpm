@@ -128,6 +128,6 @@ if __name__ == "__main__":
     save_timeline(noise_step_images, out_dir / f"timeline.png", timeline_stepsize)
     if export_all:
         for i, noised_image in enumerate(noise_step_images):
-            save_image(noised_image, out_dir / f"image-{i + 1}.png")
+            save_image(noised_image, out_dir / f"image_{i + 1}.png")
 
     logging.info("Done.")
