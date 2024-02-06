@@ -203,7 +203,7 @@ class GaussianDiffuser:
                 images += sqrt_posterior_variance_t * noise
             result[:, i] = images
         model.train(True)  # Reset the model to training mode
-        return result if all_steps else result[-1]
+        return result if all_steps else result[:, -1]
 
     @torch.no_grad()
     def to(self, device: torch.device) -> "GaussianDiffuser":
