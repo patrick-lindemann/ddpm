@@ -90,7 +90,7 @@ class LinearSchedule(Schedule):
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
         result = self.start + t * (self.end - self.start)
-        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class PolynomialSchedule(Schedule):
@@ -110,7 +110,7 @@ class PolynomialSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class CosineSchedule(Schedule):
@@ -135,7 +135,7 @@ class CosineSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 class SigmoidSchedule(Schedule):
@@ -160,7 +160,7 @@ class SigmoidSchedule(Schedule):
         v_end = f(self.end)
         v_t = f(t * (self.end - self.start) + self.start)
         result = (v_t - v_start) / (v_end - v_start)
-        return torch.clamp(result, CLIP_MIN, CLIP_MAX)
+        return torch.clip(result, CLIP_MIN, CLIP_MAX)
 
 
 """Functions"""
