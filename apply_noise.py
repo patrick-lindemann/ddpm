@@ -120,6 +120,7 @@ if __name__ == "__main__":
     noise_step_images = torch.zeros((time_steps, *image.squeeze().shape))
     for t in tqdm(range(time_steps)):
         noised_image, _ = diffuser.forward(image, torch.tensor([t]))
+        noised_image = torch.clip(noised_image, -1.0, 1.0)
         noise_step_images[t] = noised_image.squeeze()
 
     # Save the noise process results

@@ -108,8 +108,9 @@ if __name__ == "__main__":
         images: torch.Tensor = diffuser.sample(
             model, batch_size, all_steps=export_timeline
         )
+        images = torch.clip(images, -1.0, 1.0)
         for i, image in enumerate(images):
-            image_index = i * num_batches
+            image_index = (i + 1) * num_batches
             if export_timeline:
                 timeline = images[i]
                 save_timeline(

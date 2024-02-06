@@ -120,7 +120,6 @@ class GaussianDiffuser:
             (N, 1, 1, 1)
         )
         result = sqrt_alpha_hat_t * images + sqrt_one_minus_alpha_hat_t * noise
-        result = torch.clamp(result, -1.0, 1.0)
         return result, noise
 
     @torch.no_grad()
@@ -154,14 +153,13 @@ class GaussianDiffuser:
             t
         ].reshape((N, 1, 1, 1))
         result = one_over_sqrt_alpha_t * (
-            images - (beta_t * predicted_noise * one_over_sqrt_one_minus_alpha_hat_t)
+            images - beta_t * predicted_noise * one_over_sqrt_one_minus_alpha_hat_t
         )
-        result = torch.clamp(result, -1.0, 1.0)
         return result
 
     @torch.no_grad()
     def sample(
-        self, model: DenoisingUNet2D, N: int = 1, all_steps: bool = False
+        self, model: DenoisingUNet2D, num_images: int = 1, all_steps: bool = False
     ) -> torch.Tensor:
         """Sample images from a learned distribution using a trained denoising model
         and the reverse kernel of the diffusion process.
@@ -170,7 +168,7 @@ class GaussianDiffuser:
         ----------
         model : DenoisingUNet2D
             The trained denoising model.
-        N : int, optional
+        num_images : int, optional
             The number of images to generate, by default 1
         all_steps : bool, optional
             Whether to output all images of the diffusion process, by default False.
@@ -185,23 +183,23 @@ class GaussianDiffuser:
         model.train(False)  # Set the model to evaluation mode
         image_size = model.sample_size
         result = torch.zeros(
-            (N, self.time_steps, 3, image_size, image_size), device=self.device
+            (num_images, self.time_steps, 3, image_size, image_size), device=self.device
         )
-        images = torch.randn((N, 3, image_size, image_size), device=self.device)
+        images = torch.randn((num_images, 3, image_size, image_size), device=self.device)
+        result[:, 0] = images
         for step in reversed(
-            tqdm(range(0, self.time_steps), desc="sampling", leave=False)
+            tqdm(range(self.time_steps), desc="sampling", leave=False)
         ):
-            t = torch.full((N,), step, dtype=torch.long, device=self.device)
+            t = torch.full((num_images,), step, dtype=torch.long, device=self.device)
             predicted_noise = model(images, t).sample
             images = self.reverse(images, predicted_noise, t)
             if step > 0:
                 # Add random noise to the result
                 noise = torch.randn_like(images, device=self.device)
                 sqrt_posterior_variance_t = self._sqrt_posterior_variance[t].reshape(
-                    (N, 1, 1, 1)
+                    (num_images, 1, 1, 1)
                 )
                 images += sqrt_posterior_variance_t * noise
-                images = torch.clamp(images, -1.0, 1.0)
             result[:, step] = images
         model.train(True)  # Reset the model to training mode
         return result if all_steps else result[-1]
