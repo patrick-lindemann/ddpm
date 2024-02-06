@@ -203,7 +203,7 @@ if __name__ == "__main__":
             images = batch[0]
             t = torch.randint(0, time_steps, (images.shape[0],), device=device)
             noised_images, noises = diffuser.forward(images, t)
-            predicted_noises = model(noised_images.float(), t).sample
+            predicted_noises = model(noised_images, t).sample
             loss = loss_func(predicted_noises, noises)
             train_loss += loss.item()
             loss.backward()
