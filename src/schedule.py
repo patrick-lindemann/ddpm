@@ -89,7 +89,7 @@ class LinearSchedule(Schedule):
 
     def __call__(self, t: torch.Tensor) -> torch.Tensor:
         assert torch.all(t >= 0.0) and torch.all(t <= 1.0)
-        result = (t - self.start) / (self.end - self.start)
+        result = self.start + t * (self.end - self.start)
         return torch.clamp(result, CLIP_MIN, CLIP_MAX)
 
 
