@@ -97,8 +97,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--loss-function",
         type=str.lower,
-        help='The loss function to use. Allowed values: "l1", "l2", "smoothl1',
-        default="l2",
+        help='The loss function to use. Allowed values: "l1", "mse", "smoothl1',
+        default="mse",
     )
     parser.add_argument(
         "--learning-rate",
@@ -139,7 +139,7 @@ def get_args() -> argparse.Namespace:
 def get_loss_func(name: str) -> torch.nn.Module:
     if name == "l1":
         return torch.nn.L1Loss()
-    elif name == "l2":
+    elif name == "mse":
         return torch.nn.MSELoss()
     else:
         return torch.nn.SmoothL1Loss()
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     test_size = dataset_size - train_size
     if do_validation:
         assert test_size > 0
-    assert loss_name in ["l1", "l2", "smoothl1"]
+    assert loss_name in ["l1", "mse", "smoothl1"]
 
     # Prepare the model and training
     train_loader, test_loader = create_dataloaders(
