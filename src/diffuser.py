@@ -28,12 +28,15 @@ class GaussianDiffuser:
     schedule: Schedule
     device: torch.device
 
-    _beta: torch.Tensor
-    _alpha: torch.Tensor
-    _sqrt_alpha: torch.Tensor
-    _alpha_hat: torch.Tensor
-    _sqrt_alpha_hat: torch.Tensor
-    _sqrt_one_minus_alpha_hat: torch.Tensor
+    _betas: torch.Tensor
+    _alphas: torch.Tensor
+    _sqrt_alphas: torch.Tensor
+    _alphas_cumprod: torch.Tensor
+    _alphas_cumprod_prev: torch.Tensor
+    _sqrt_alphas_cumprod: torch.Tensor
+    _sqrt_one_minus_alphas_cumprod: torch.Tensor
+    _sqrt_recip_alphas_cumprod: torch.Tensor
+    _sqrt_recip_alphas_cumprod_minus_one: torch.Tensor
     _posterior_variance: torch.Tensor
     _sqrt_posterior_variance: torch.Tensor
 
@@ -80,17 +83,23 @@ class GaussianDiffuser:
         self.schedule = schedule
         self.device = torch.device("cpu")
         # Pre-calculate the diffusion parameters
-        self._beta = schedule(torch.linspace(0.0, 1.0, time_steps))
-        self._alpha = 1.0 - self._beta
-        self._sqrt_alpha = torch.sqrt(self._alpha)
-        self._one_over_sqrt_alpha = 1.0 / self._sqrt_alpha
-        self._alpha_hat = torch.cumprod(self._alpha, axis=0)
-        self._sqrt_alpha_hat = torch.sqrt(self._alpha_hat)
-        self._sqrt_one_minus_alpha_hat = torch.sqrt(1 - self._alpha_hat)
-        self._one_over_one_minus_alpha_hat = 1.0 / (1.0 - self._alpha_hat)
-        self._posterior_variance = self._beta * (
-            (1.0 - functional.pad(self._alpha_hat[:-1], (1, 0), value=1.0))
-            * self._one_over_one_minus_alpha_hat
+        self._betas = schedule(torch.linspace(0.0, 1.0, time_steps)).to(self.device)
+        self._alphas = 1.0 - self._betas
+        self._sqrt_alphas = torch.sqrt(self._alphas)
+        self._alphas_cumprod = torch.cumprod(self._alphas, axis=0)
+        self._alphas_cumprod_prev = functional.pad(
+            self._alphas_cumprod[:-1], (1, 0), value=1.0
+        )
+        self._sqrt_alphas_cumprod = torch.sqrt(self._alphas_cumprod)
+        self._sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - self._alphas_cumprod)
+        self._sqrt_recip_alphas_cumprod = torch.sqrt(1.0 / self._alphas_cumprod)
+        self._sqrt_recip_alphas_cumprod_minus_one = torch.sqrt(
+            1.0 / self._alphas_cumprod - 1
+        )
+        self._posterior_variance = self._betas * (
+            self._betas
+            * (1.0 - self._alphas_cumprod_prev)
+            / (1.0 - self._alphas_cumprod)
         )
         self._sqrt_posterior_variance = torch.sqrt(self._posterior_variance)
 
@@ -113,13 +122,12 @@ class GaussianDiffuser:
         Tuple[torch.Tensor, torch.Tensor]
             A tuple containing the noised images and the applied noises.
         """
-        N = images.shape[0]
         noise = torch.randn_like(images, device=self.device)
-        sqrt_alpha_hat_t = self._sqrt_alpha_hat[t].reshape((N, 1, 1, 1))
-        sqrt_one_minus_alpha_hat_t = self._sqrt_one_minus_alpha_hat[t].reshape(
-            (N, 1, 1, 1)
+        sqrt_alpha_cumprod_t = self._extract(self._sqrt_alphas_cumprod, t)
+        sqrt_one_minus_alpha_cumprod_t = self._extract(
+            self._sqrt_one_minus_alphas_cumprod, t
         )
-        result = sqrt_alpha_hat_t * images + sqrt_one_minus_alpha_hat_t * noise
+        result = sqrt_alpha_cumprod_t * images + sqrt_one_minus_alpha_cumprod_t * noise
         return result, noise
 
     @torch.no_grad()
@@ -146,15 +154,13 @@ class GaussianDiffuser:
         torch.Tensor
             The reconstructed images.
         """
-        N = images.shape[0]
-        beta_t = self._beta[t].reshape((N, 1, 1, 1))
-        one_over_sqrt_alpha_t = self._one_over_sqrt_alpha[t].reshape((N, 1, 1, 1))
-        one_over_sqrt_one_minus_alpha_hat_t = self._one_over_one_minus_alpha_hat[
-            t
-        ].reshape((N, 1, 1, 1))
-        result = one_over_sqrt_alpha_t * (
-            images - beta_t * predicted_noise * one_over_sqrt_one_minus_alpha_hat_t
+        sqrt_recip_alphas_cumprod_t = self._extract(self._sqrt_recip_alphas_cumprod, t)
+        sqrt_recip_alphas_cumprod_minus_one_t = self._extract(
+            self._sqrt_recip_alphas_cumprod_minus_one, t
         )
+        result = (
+            sqrt_recip_alphas_cumprod_t * images - predicted_noise
+        ) / sqrt_recip_alphas_cumprod_minus_one_t
         return result
 
     @torch.no_grad()
@@ -197,8 +203,8 @@ class GaussianDiffuser:
             if step > 0:
                 # Add random noise to the result
                 noise = torch.randn_like(images, device=self.device)
-                sqrt_posterior_variance_t = self._sqrt_posterior_variance[t].reshape(
-                    (num_images, 1, 1, 1)
+                sqrt_posterior_variance_t = self._extract(
+                    self._sqrt_posterior_variance, t
                 )
                 images += sqrt_posterior_variance_t * noise
             result[:, i] = images
@@ -220,15 +226,18 @@ class GaussianDiffuser:
             The moved diffuser.
         """
         self.device = device
-        self._beta = self._beta.to(device)
-        self._alpha = self._alpha.to(device)
-        self._sqrt_alpha = self._sqrt_alpha.to(device)
-        self._one_over_sqrt_alpha = self._one_over_sqrt_alpha.to(device)
-        self._alpha_hat = self._alpha_hat.to(device)
-        self._sqrt_alpha_hat = self._sqrt_alpha_hat.to(device)
-        self._sqrt_one_minus_alpha_hat = self._sqrt_one_minus_alpha_hat.to(device)
-        self._one_over_one_minus_alpha_hat = self._one_over_one_minus_alpha_hat.to(
+        self._betas = self._betas.to(device)
+        self._alphas = self._alphas.to(device)
+        self._sqrt_alphas = self._sqrt_alphas.to(device)
+        self._alphas_cumprod = self._alphas_cumprod.to(device)
+        self._alphas_cumprod_prev = self._alphas_cumprod_prev.to(device)
+        self._sqrt_alphas_cumprod = self._sqrt_alphas_cumprod.to(device)
+        self._sqrt_one_minus_alphas_cumprod = self._sqrt_one_minus_alphas_cumprod.to(
             device
+        )
+        self._sqrt_recip_alphas_cumprod = self._sqrt_recip_alphas_cumprod.to(device)
+        self._sqrt_recip_alphas_cumprod_minus_one = (
+            self._sqrt_recip_alphas_cumprod_minus_one.to(device)
         )
         self._posterior_variance = self._posterior_variance.to(device)
         self._sqrt_posterior_variance = self._sqrt_posterior_variance.to(device)
@@ -256,3 +265,20 @@ class GaussianDiffuser:
             del config["schedule"]["tau"]
         with open(config_path, "w") as file:
             json.dump(config, file)
+
+    def _extract(self, tensor: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Extract the values of a tensor at specified timesteps t.
+
+        Parameters
+        ----------
+        tensor : torch.Tensor
+            The tensor to extract the values from with shape (T, ...).
+        t : torch.Tensor
+            The timesteps with shape (N, 1).
+
+        Returns
+        -------
+        torch.Tensor
+            The extracted values with shape (N, 1, 1, 1).
+        """
+        return tensor[t].reshape((t.shape[0], 1, 1, 1))
